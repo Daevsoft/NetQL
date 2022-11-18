@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Data.Common;
+using System.Transactions;
 
 /*
  Author by   : Muhamad Deva Arofi
@@ -406,19 +407,22 @@ namespace netQL.Lib
             AddOptionOrder();
             AddOptionLimit();
 
-            var dataReader = command.ExecuteReader();
             int rows = 0;
-            if (dataReader.HasRows)
+            StartScope(() =>
             {
-                while (dataReader.Read())
+                var dataReader = command.ExecuteReader();
+                if (dataReader.HasRows)
                 {
-                    ReaderUtil<IDataReader> reader = new ReaderUtil<IDataReader>(dataReader);
-                    callback(reader);
-                    rows++;
+                    while (dataReader.Read())
+                    {
+                        ReaderUtil<IDataReader> reader = new ReaderUtil<IDataReader>(dataReader);
+                        callback(reader);
+                        rows++;
+                    }
+                    dataReader.Close();
                 }
-                dataReader.Close();
-            }
-            Clear();
+                Close();
+            });
             return rows;
         }
 
@@ -430,16 +434,39 @@ namespace netQL.Lib
             joinValues.Clear();
         }
 
+        private void StartScope(Action transactionCallback)
+        {
+            using (TransactionScope scope = new TransactionScope())
+            {
+                try
+                {
+                    transactionCallback();
+
+                    // complete scope transaction
+                    scope.Complete();
+                }
+                catch (Exception e)
+                {
+                    scope.Complete();
+                    throw;
+                }
+            }
+        }
+
         public dynamic Execute(Action<dynamic> callback = null)
         {
-            transaction = connection.BeginTransaction();
-            command.Transaction = transaction;
-            var result = command.ExecuteNonQuery();
-            transaction.Commit();
-            Clear();
+            StartScope(() =>
+            {
+                transaction = connection.BeginTransaction();
+                command.Transaction = transaction;
+                var result = command.ExecuteNonQuery();
+                transaction.Commit();
+                Close();
 
-            if (callback != null)
-                callback(result);
+                if (callback != null)
+                    callback(result);
+
+            });
             return transaction;
         }
 
@@ -499,19 +526,22 @@ namespace netQL.Lib
         }
         public bool IsExist()
         {
-            AddOptionWhere();
-            command.CommandText = "select 1 from (" + command.CommandText + ") anu group by 1";
-            var dataReader = command.ExecuteReader();
             int rows = 0;
-            if (dataReader.HasRows)
+            StartScope(() =>
             {
-                while (dataReader.Read())
+                AddOptionWhere();
+                command.CommandText = "select 1 from (" + command.CommandText + ") anu group by 1";
+                var dataReader = command.ExecuteReader();
+                if (dataReader.HasRows)
                 {
-                    rows++;
+                    while (dataReader.Read())
+                    {
+                        rows++;
+                    }
+                    dataReader.Close();
                 }
-                dataReader.Close();
-            }
-            Clear();
+                Close();
+            });
             return rows > 0;
         }
         public SqlModel<T> Insert(string tableName)
