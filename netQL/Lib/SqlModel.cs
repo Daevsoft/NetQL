@@ -15,34 +15,54 @@ namespace netQL.Lib
         private List<Set> columnValues;
         private DbUtils<T> dbUtils;
         private List<SetWhere> whereValues;
-        public SqlModel(DbUtils<T> dbUtils, string quotSql)
+        private List<object> bulkInsertData;
+
+        public SqlModel(DbUtils<T> dbUtils, string quotSql, string endQuotSql)
         {
             this.dbUtils = dbUtils;
             this.quotSql = quotSql;
+            this.endQuotSql = endQuotSql;
             columnValues = new List<Set>();
             whereValues = new List<SetWhere>();
+            bulkInsertData = new List<object>();
+        }
+        public SqlModel<T> Bulk(object dataBulk)
+        {
+            if (dataBulk is Array)
+            {
+                var dataList = (Array)dataBulk;
+                foreach (var data in dataList)
+                {
+                    bulkInsertData.Add(data);
+                }
+            }
+            else
+            {
+                bulkInsertData.Add(dataBulk);
+            }
+            return this;
         }
         public SqlModel<T> Insert(string tableName)
         {
             sqlModelType = SqlModelType.INSERT;
-            query = "INSERT INTO " + WrapQuot(tableName);
+            query = "INSERT INTO " + quotSql + tableName + quotSql;
             return this;
         }
         public SqlModel<T> Update(string tableName)
         {
             sqlModelType = SqlModelType.UPDATE;
-            query = "UPDATE " + WrapQuot(tableName);
+            query = "UPDATE " + quotSql + tableName + quotSql;
             return this;
         }
         public SqlModel<T> Delete(string tableName)
         {
             sqlModelType = SqlModelType.DELETE;
-            query = "DELETE FROM " + WrapQuot(tableName);
+            query = "DELETE FROM " + quotSql + tableName + quotSql;
             return this;
         }
         public SqlModel<T> Where(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
+            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.','_'), Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
         public SqlModel<T> Where(string columnName, object value, string oOperator, DbType dbType = DbType.String, Func<string, string> customBind = null)
@@ -97,7 +117,7 @@ namespace netQL.Lib
             {
                 if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
                     continue;
-
+                
                 dbUtils.AddParameter(_value.BindName, _value.Value, _value.VType);
             }
             foreach (Set _value in whereValues)
@@ -128,7 +148,7 @@ namespace netQL.Lib
                 }
                 else
                 {
-                    bindingValue = _value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName;
+                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
                 }
                 setQuery += ',' + WrapQuot(_value.Column) + '=' + bindingValue;
             }
@@ -138,22 +158,66 @@ namespace netQL.Lib
         }
         private void SetupInsertQuery()
         {
-            string columns = string.Empty;
-            string bindings = string.Empty;
-            foreach (Set _value in columnValues)
+            if(bulkInsertData.Count > 0)
             {
-                columns += ',' + WrapQuot(_value.Column);
-                if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
-                {
-                    bindings += "," + _value.Value;
-                }
-                else
-                {
-                    bindings += "," + (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
-                }
+                query += GenerateBulkInsertBind();
             }
-            query += "(" + columns.TrimStart(',') + ")";
-            query += " VALUES(" + bindings.TrimStart(',') + ")";
+            else
+            {
+                string columns = string.Empty;
+                string bindings = string.Empty;
+                foreach (Set _value in columnValues)
+                {
+                    columns += ',' + WrapQuot(_value.Column);
+                    if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
+                    {
+                        bindings += "," + _value.Value;
+                    }
+                    else
+                    {
+                        bindings += "," + (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
+                    }
+                }
+                query += "(" + columns.TrimStart(',') + ")";
+                query += " VALUES (" + bindings.TrimStart(',') + ")";
+            }
+        }
+        private string GenerateBulkInsertBind()
+        {
+            string resultValuesQuery = string.Empty;
+            string insertColumn = "";
+            var index = 0;
+            foreach (var data in bulkInsertData)
+            {
+                resultValuesQuery += ",(";
+
+                var properties = data.GetType().GetProperties().AsEnumerable();
+                int propertiesLength = properties.Count();
+                string colValues = "";
+                
+                for (int i = 0; i < propertiesLength; i++)
+                {
+                    var prop = properties.ElementAt(i);
+                    var columnName = prop.Name + index;
+                    var valueProp = prop.GetValue(data);
+
+                    // field with underscore will skipped
+                    if (columnName.First() == '_') continue;
+                    else
+                    {
+                        dbUtils.AddParameter(columnName, valueProp, GetType(valueProp));
+                        colValues += "," + bindSymbol + columnName;
+                    }
+                    // generate column name for insert
+                    if(index == 0)
+                    {
+                        insertColumn += "," + WrapQuot(prop.Name);
+                    }
+                }
+                index++;
+                resultValuesQuery += colValues.Substring(1) + ")";
+            }
+            return "("+ insertColumn.Substring(1) + ") VALUES " + resultValuesQuery.Substring(1);
         }
         private void SetupDeleteQuery()
         {
@@ -173,7 +237,7 @@ namespace netQL.Lib
                 }
                 else
                 {
-                    bindingValue = _value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName;
+                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
                 }
                 whereQuery += ' ' + _value.Operator + " " + WrapQuot(_value.Column) + " " + _value.ValueOperator + " " + bindingValue;
             }

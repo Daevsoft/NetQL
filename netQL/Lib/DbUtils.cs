@@ -27,12 +27,14 @@ namespace netQL.Lib
         private List<Join> joinValues;
         private DbUtils<T> parentDb;
         private string identity = new Random().Next(200).ToString();
+        private List<string> groupByColumns;
         public DbUtils(T connection, Provider provider)
         {
-            if(provider == Provider.MySql)
+            if (provider == Provider.MySql)
             {
                 Setup(connection, '`', '`', '@');
-            }else if(provider == Provider.PostgreSQL)
+            }
+            else if (provider == Provider.PostgreSQL)
             {
                 Setup(connection, '"', '"', ':');
             }
@@ -45,7 +47,26 @@ namespace netQL.Lib
                 throw new Exception("Provider not supported");
             }
         }
-        public DbUtils(T connection, char quotSql = '`', char bindSymbol = '@')
+        public DbUtils(T connection)
+        {
+            if (typeof(T).Name == "MySqlConnection")
+            {
+                Setup(connection, '`', '`', '@');
+            }
+            else if (typeof(T).Name == "NpgsqlConnection")
+            {
+                Setup(connection, '"', '"', ':');
+            }
+            else if (typeof(T).Name == "SqlConnection")
+            {
+                Setup(connection, '[', ']', '@');
+            }
+            else
+            {
+                throw new Exception("Provider not supported");
+            }
+        }
+        public DbUtils(T connection, char quotSql, char bindSymbol = '@')
         {
             char endQuot = quotSql;
             if (quotSql == '[')
@@ -150,7 +171,7 @@ namespace netQL.Lib
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
-        public DbUtils<T> OrderBy(string columns, Order orderType)
+        public DbUtils<T> OrderBy(string columns, Order orderType = Order.ASC)
         {
             orderAdditional = " ORDER BY " + string.Join(',', columns.Split(',').Select(x => WrapQuot(x))) + " " + orderType.ToString();
             return this;
@@ -219,14 +240,14 @@ namespace netQL.Lib
             DbUtils<T> dbClone = Clone();
             dbClone = subQuery(dbClone);
             dbClone.identity = alias;
-            string queryTarget = dbClone.generateQuery();
+            string queryTarget = dbClone.GenerateQuery();
             return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2);
         }
         private DbUtils<T> NewJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
         {
             DbUtils<T> dbClone = Clone();
             dbClone = subQuery(dbClone);
-            string queryTarget = dbClone.generateQuery();
+            string queryTarget = dbClone.GenerateQuery();
             return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2);
         }
         public DbUtils<T> Join(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2)
@@ -286,6 +307,15 @@ namespace netQL.Lib
                     " JOIN " + _value.Table + " ON " + _value.OnColumn + "=" + _value.OnValue;
             }
             return joinQuery;
+        }
+        private string GenerateGroupBy()
+        {
+            string groupBy = string.Empty;
+            if(groupByColumns != null && groupByColumns.Count > 0)
+            {
+                groupBy += " GROUP BY " + string.Join(',', groupByColumns.Select(x => WrapQuot(x)));
+            }
+            return groupBy;
         }
         public List<A> ReadAsList<A>()
         {
@@ -388,10 +418,11 @@ namespace netQL.Lib
             });
             return rowCount > 0 ? data : default;
         }
-        public String generateQuery()
+        public string GenerateQuery()
         {
             AddOptionJoin();
             AddOptionWhere();
+            AddOptionGroupBy();
             AddOptionOrder();
             AddOptionLimit();
             string query = command.CommandText;
@@ -402,10 +433,7 @@ namespace netQL.Lib
         public int Read(Action<ReaderUtil<IDataReader>> callback)
         {
             // check if contain where conditions
-            AddOptionJoin();
-            AddOptionWhere();
-            AddOptionOrder();
-            AddOptionLimit();
+            GenerateQuery();
 
             int rows = 0;
             StartScope(() =>
@@ -500,6 +528,10 @@ namespace netQL.Lib
         {
             command.CommandText += GenerateJoins();
         }
+        private void AddOptionGroupBy()
+        {
+            command.CommandText += GenerateGroupBy();
+        }
 
         private void OpenConnection()
         {
@@ -524,6 +556,22 @@ namespace netQL.Lib
             if (transaction != null)
                 transaction.Rollback();
         }
+        private void InitGroupBy()
+        {
+            if (groupByColumns == null)
+                groupByColumns = new List<string>();
+        }
+        public DbUtils<T> GroupBy(string columnName)
+        {
+            InitGroupBy();
+            groupByColumns.Add(columnName);
+            return this;
+        }
+        public DbUtils<T> GroupBy(List<string> columnNames)
+        {
+            groupByColumns = columnNames;
+            return this;
+        }
         public bool IsExist()
         {
             int rows = 0;
@@ -546,7 +594,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> Insert(string tableName)
         {
-            return new SqlModel<T>(this, quotSql).Insert(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql).Insert(tableName);
         }
         private void BindProperties<A>(SqlModel<T> dbUtil, A dataObject)
         {
@@ -572,17 +620,24 @@ namespace netQL.Lib
         }
         public SqlModel<T> Insert<A>(string tableName, A dataObject)
         {
-            var _dbUtilTemp = new SqlModel<T>(this, quotSql).Insert(tableName);
-            BindProperties(_dbUtilTemp, dataObject);
+            var _dbUtilTemp = new SqlModel<T>(this, quotSql, endQuotSql).Insert(tableName);
+            if (dataObject is Array)
+            {
+                _dbUtilTemp.Bulk(dataObject);
+            }
+            else
+            {
+                BindProperties(_dbUtilTemp, dataObject);
+            }
             return _dbUtilTemp;
         }
         public SqlModel<T> Update(string tableName)
         {
-            return new SqlModel<T>(this, quotSql).Update(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql).Update(tableName);
         }
         public SqlModel<T> Delete(string tableName)
         {
-            return new SqlModel<T>(this, quotSql).Delete(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql).Delete(tableName);
         }
     }
 }
