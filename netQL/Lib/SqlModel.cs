@@ -61,7 +61,12 @@ namespace netQL.Lib
             query = "DELETE FROM " + quotSql + tableName + quotSql;
             return this;
         }
-        public SqlModel<T> Where(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
+        public SqlModel<T> Where(string columnName, object value, Func<string, string> customBind = null)
+        {
+            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind });
+            return this;
+        }
+        public SqlModel<T> Where(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
             return this;
