@@ -311,7 +311,7 @@ namespace netQL.Lib
         private string GenerateGroupBy()
         {
             string groupBy = string.Empty;
-            if(groupByColumns != null && groupByColumns.Count > 0)
+            if (groupByColumns != null && groupByColumns.Count > 0)
             {
                 groupBy += " GROUP BY " + string.Join(',', groupByColumns.Select(x => WrapQuot(x)));
             }
@@ -594,7 +594,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> Insert(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql).Insert(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
         }
         private void BindProperties<A>(SqlModel<T> dbUtil, A dataObject)
         {
@@ -620,7 +620,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> Insert<A>(string tableName, A dataObject)
         {
-            var _dbUtilTemp = new SqlModel<T>(this, quotSql, endQuotSql).Insert(tableName);
+            var _dbUtilTemp = new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
             if (dataObject is Array)
             {
                 _dbUtilTemp.Bulk(dataObject);
@@ -633,11 +633,11 @@ namespace netQL.Lib
         }
         public SqlModel<T> Update(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql).Update(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Update(tableName);
         }
         public SqlModel<T> Delete(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql).Delete(tableName);
+            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Delete(tableName);
         }
     }
 }

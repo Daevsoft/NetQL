@@ -17,11 +17,12 @@ namespace netQL.Lib
         private List<SetWhere> whereValues;
         private List<object> bulkInsertData;
 
-        public SqlModel(DbUtils<T> dbUtils, string quotSql, string endQuotSql)
+        public SqlModel(DbUtils<T> dbUtils, string quotSql, string endQuotSql, string bindSymbol)
         {
             this.dbUtils = dbUtils;
             this.quotSql = quotSql;
             this.endQuotSql = endQuotSql;
+            this.bindSymbol = bindSymbol;
             columnValues = new List<Set>();
             whereValues = new List<SetWhere>();
             bulkInsertData = new List<object>();
@@ -62,7 +63,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> Where(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.','_'), Value = value, VType = dbType, CustomBind = customBind });
+            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
         public SqlModel<T> Where(string columnName, object value, string oOperator, DbType dbType = DbType.String, Func<string, string> customBind = null)
@@ -117,7 +118,7 @@ namespace netQL.Lib
             {
                 if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
                     continue;
-                
+
                 dbUtils.AddParameter(_value.BindName, _value.Value, _value.VType);
             }
             foreach (Set _value in whereValues)
@@ -158,7 +159,7 @@ namespace netQL.Lib
         }
         private void SetupInsertQuery()
         {
-            if(bulkInsertData.Count > 0)
+            if (bulkInsertData.Count > 0)
             {
                 query += GenerateBulkInsertBind();
             }
@@ -194,7 +195,7 @@ namespace netQL.Lib
                 var properties = data.GetType().GetProperties().AsEnumerable();
                 int propertiesLength = properties.Count();
                 string colValues = "";
-                
+
                 for (int i = 0; i < propertiesLength; i++)
                 {
                     var prop = properties.ElementAt(i);
@@ -209,7 +210,7 @@ namespace netQL.Lib
                         colValues += "," + bindSymbol + columnName;
                     }
                     // generate column name for insert
-                    if(index == 0)
+                    if (index == 0)
                     {
                         insertColumn += "," + WrapQuot(prop.Name);
                     }
@@ -217,7 +218,7 @@ namespace netQL.Lib
                 index++;
                 resultValuesQuery += colValues.Substring(1) + ")";
             }
-            return "("+ insertColumn.Substring(1) + ") VALUES " + resultValuesQuery.Substring(1);
+            return "(" + insertColumn.Substring(1) + ") VALUES " + resultValuesQuery.Substring(1);
         }
         private void SetupDeleteQuery()
         {
