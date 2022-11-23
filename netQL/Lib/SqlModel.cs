@@ -206,7 +206,7 @@ namespace netQL.Lib
                     if (columnName.First() == '_') continue;
                     else
                     {
-                        dbUtils.AddParameter(columnName, valueProp, GetType(valueProp));
+                        AddValue(columnName, valueProp, GetType(valueProp));
                         colValues += "," + bindSymbol + columnName;
                     }
                     // generate column name for insert

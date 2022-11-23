@@ -17,7 +17,6 @@ namespace netQL.Lib
     {
         SqlServer, MySql, PostgreSQL
     }
-
     public partial class DbUtils<T> : QueryCommon
     {
         private dynamic connection;
