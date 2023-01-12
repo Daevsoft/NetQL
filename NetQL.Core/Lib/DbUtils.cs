@@ -150,6 +150,16 @@ namespace netQL.Lib
             whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
+        public DbUtils<T> WhereRaw(string whereQuery)
+        {
+            whereValues.Add(new SetWhereRaw { Column = null, BindName = null, Value = whereQuery, ValueOperator = string.Empty });
+            return this;
+        }
+        public DbUtils<T> OrWhereRaw(string whereQuery)
+        {
+            whereValues.Add(new SetWhereRaw { Column = null, BindName = null, Value = whereQuery, Operator = "OR", IsRaw = true, ValueOperator = string.Empty });
+            return this;
+        }
         public DbUtils<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
@@ -279,7 +289,7 @@ namespace netQL.Lib
 
             var whereQuery = string.Empty;
             bool firstCondition = true;
-            foreach (SetWhere _value in whereValues)
+            foreach (var _value in whereValues)
             {
                 if (_value.IsFromChild) continue;
 
@@ -292,7 +302,7 @@ namespace netQL.Lib
 
                 whereQuery += ' ' + _value.Operator + " " + WrapQuot(_value.Column) + " " + _value.ValueOperator + " " + bindingValue;
             }
-            return String.IsNullOrEmpty(whereQuery) ? whereQuery : " WHERE" + whereQuery;
+            return string.IsNullOrEmpty(whereQuery) ? whereQuery : " WHERE" + whereQuery;
         }
         private string GenerateJoins()
         {

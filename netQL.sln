@@ -7,6 +7,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NetQL", "netQL\NetQL.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetQLTest", "NetQLTest\NetQLTest.csproj", "{FFDADDDB-8A55-41C4-8EC4-97F29A5EF694}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NetQL.Core", "NetQL.Core\NetQL.Core.csproj", "{B2154393-4271-4EF5-BEDF-E6C89D5C516A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7B08B992-21B0-4910-B44B-A5E37ED678CB} = {7B08B992-21B0-4910-B44B-A5E37ED678CB}
+		{FFDADDDB-8A55-41C4-8EC4-97F29A5EF694} = {FFDADDDB-8A55-41C4-8EC4-97F29A5EF694}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +27,10 @@ Global
 		{FFDADDDB-8A55-41C4-8EC4-97F29A5EF694}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FFDADDDB-8A55-41C4-8EC4-97F29A5EF694}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FFDADDDB-8A55-41C4-8EC4-97F29A5EF694}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2154393-4271-4EF5-BEDF-E6C89D5C516A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2154393-4271-4EF5-BEDF-E6C89D5C516A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2154393-4271-4EF5-BEDF-E6C89D5C516A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2154393-4271-4EF5-BEDF-E6C89D5C516A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

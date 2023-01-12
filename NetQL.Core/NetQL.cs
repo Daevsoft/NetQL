@@ -1,6 +1,7 @@
 ﻿using netQL.Lib;
+using System;
 
-namespace netQL
+namespace NetQL.Core
 {
     public class NetQL<T> : DbUtils<T>
     {
@@ -10,7 +11,8 @@ namespace netQL
         public NetQL(T connection, Provider provider) : base(connection, provider)
         {
         }
-        public NetQL(T connection, char quotSql, char bindSymbol = '@'):base(connection, quotSql, bindSymbol) {
+        public NetQL(T connection, char quotSql, char bindSymbol = '@') : base(connection, quotSql, bindSymbol)
+        {
         }
     }
 }
