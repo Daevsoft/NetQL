@@ -474,8 +474,12 @@ namespace netQL.Lib
                 }
                 catch (Exception e)
                 {
+                    Rollback();
                     scope.Complete();
-                    throw;
+                    throw e;
+                }
+                finally {
+                    Close();
                 }
             }
         }
@@ -488,7 +492,6 @@ namespace netQL.Lib
                 command.Transaction = transaction;
                 var result = command.ExecuteNonQuery();
                 transaction.Commit();
-                Close();
 
                 if (callback != null)
                     callback(result);
