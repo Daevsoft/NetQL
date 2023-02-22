@@ -35,6 +35,14 @@ SqlConnection connection = new SqlConnection(connectionString);
 NetQL<SqlConnection> db = new NetQL<SqlConnection>(connection, Provider.SqlServer);
 ```
 
+## Support Database
+<div style="display:flex">
+  <img src="https://www.itworks.id/wp-content/uploads/2021/02/oracle-1.png" height="100" alt="oracle database">
+  <img src="https://labs.mysql.com/common/logos/mysql-logo.svg?v2" height="100" alt="oracle database">
+  <img src="https://kinsta.com/wp-content/uploads/2022/02/postgres-logo.png" height="100" alt="oracle database">
+  <img src="https://surabaya.proxsisgroup.com/wp-content/uploads/2018/01/Microsoft-SQL-Server.png" height="100" alt="oracle database">
+</div>
+
 ### Select All
 ``` C#
 var hotels = db.Select("table_hotel").ReadAsList<Hotel>();
