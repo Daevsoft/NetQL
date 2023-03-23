@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Data.Common;
 using System.Transactions;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Reflection;
 
 /*
  Author by   : Muhamad Deva Arofi
@@ -333,42 +335,44 @@ namespace netQL.Lib
             {
                 var data = (A)Activator.CreateInstance(typeof(A));
                 var properties = data.GetType().GetProperties();
+
                 foreach (var prop in properties)
                 {
                     dynamic value;
-                    if (reader.IsColumnExist(prop.Name))
+                    var columnName = prop.GetCustomAttribute<ColumnAttribute>()?.Name ?? prop.Name;
+                    if (reader.IsColumnExist(columnName))
                     {
                         if (prop.PropertyType == typeof(int))
                         {
-                            value = reader.GetValue<int>(prop.Name);
+                            value = reader.GetValue<int>(columnName);
                         }
                         else if (prop.PropertyType == typeof(short))
                         {
-                            value = reader.GetValue<short>(prop.Name);
+                            value = reader.GetValue<short>(columnName);
                         }
                         else if (prop.PropertyType == typeof(DateTime))
                         {
-                            value = reader.GetValue<DateTime>(prop.Name);
+                            value = reader.GetValue<DateTime>(columnName);
                         }
                         else if (prop.PropertyType == typeof(double))
                         {
-                            value = reader.GetValue<double>(prop.Name);
+                            value = reader.GetValue<double>(columnName);
                         }
                         else if (prop.PropertyType == typeof(long))
                         {
-                            value = reader.GetValue<long>(prop.Name);
+                            value = reader.GetValue<long>(columnName);
                         }
                         else if (prop.PropertyType == typeof(char))
                         {
-                            value = reader.GetValue<char>(prop.Name);
+                            value = reader.GetValue<char>(columnName);
                         }
                         else if (prop.PropertyType == typeof(bool))
                         {
-                            value = reader.GetValue<bool>(prop.Name);
+                            value = reader.GetValue<bool>(columnName);
                         }
                         else
                         {
-                            value = reader.GetValue<string>(prop.Name);
+                            value = reader.GetValue<string>(columnName);
                         }
                         prop.SetValue(data, Convert.ChangeType(value, prop.PropertyType), null);
                     }
@@ -386,39 +390,40 @@ namespace netQL.Lib
                 foreach (var prop in properties)
                 {
                     dynamic value;
-                    if (reader.IsColumnExist(prop.Name))
+                    var columnName = prop.GetCustomAttribute<ColumnAttribute>()?.Name ?? prop.Name;
+                    if (reader.IsColumnExist(columnName))
                     {
                         if (prop.PropertyType == typeof(int))
                         {
-                            value = reader.GetValue<int>(prop.Name);
+                            value = reader.GetValue<int>(columnName);
                         }
                         else if (prop.PropertyType == typeof(short))
                         {
-                            value = reader.GetValue<short>(prop.Name);
+                            value = reader.GetValue<short>(columnName);
                         }
                         else if (prop.PropertyType == typeof(DateTime))
                         {
-                            value = reader.GetValue<DateTime>(prop.Name);
+                            value = reader.GetValue<DateTime>(columnName);
                         }
                         else if (prop.PropertyType == typeof(double))
                         {
-                            value = reader.GetValue<double>(prop.Name);
+                            value = reader.GetValue<double>(columnName);
                         }
                         else if (prop.PropertyType == typeof(long))
                         {
-                            value = reader.GetValue<long>(prop.Name);
+                            value = reader.GetValue<long>(columnName);
                         }
                         else if (prop.PropertyType == typeof(char))
                         {
-                            value = reader.GetValue<char>(prop.Name);
+                            value = reader.GetValue<char>(columnName);
                         }
                         else if (prop.PropertyType == typeof(bool))
                         {
-                            value = reader.GetValue<bool>(prop.Name);
+                            value = reader.GetValue<bool>(columnName);
                         }
                         else
                         {
-                            value = reader.GetValue<string>(prop.Name);
+                            value = reader.GetValue<string>(columnName);
                         }
                         prop.SetValue(data, Convert.ChangeType(value, prop.PropertyType), null);
                     }
