@@ -48,9 +48,8 @@ namespace netQL.Lib
                 return FixQuot(name);
             else return name;
         }
-        protected DbType GetType(object value)
+        protected DbType GetType(Type typeProp)
         {
-            Type typeProp = value.GetType();
             if (typeProp == typeof(string))
             {
                 return DbType.String;
@@ -76,6 +75,12 @@ namespace netQL.Lib
                 return DbType.Boolean;
             }
             return DbType.String;
+        }
+        protected DbType GetType(object value)
+        {
+            if (value == null) return DbType.String;
+            Type typeValue = value.GetType();
+            return GetType(typeValue);
         }
         protected enum JoinTypes { INNER = 0, LEFT = 1, RIGHT = 2 }
         protected class Join

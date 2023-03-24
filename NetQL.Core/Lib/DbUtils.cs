@@ -328,6 +328,47 @@ namespace netQL.Lib
             }
             return groupBy;
         }
+        private dynamic GetReaderValueByType(ReaderUtil<IDataReader> reader, string columnName, Type type)
+        {
+            if (type == typeof(int))
+            {
+                return reader.GetValue<int>(columnName);
+            }
+            else if (type == typeof(short))
+            {
+                return reader.GetValue<short>(columnName);
+            }
+            else if (type == typeof(DateTime))
+            {
+                return reader.GetValue<DateTime>(columnName);
+            }
+            else if (type == typeof(DateTime?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                if (value == string.Empty) return null;
+                return DateTime.Parse(value);
+            }
+            else if (type == typeof(double))
+            {
+                return reader.GetValue<double>(columnName);
+            }
+            else if (type == typeof(long))
+            {
+                return reader.GetValue<long>(columnName);
+            }
+            else if (type == typeof(char))
+            {
+                return reader.GetValue<char>(columnName);
+            }
+            else if (type == typeof(bool))
+            {
+                return reader.GetValue<bool>(columnName);
+            }
+            else
+            {
+                return reader.GetValue<string>(columnName);
+            }
+        }
         public List<A> ReadAsList<A>()
         {
             List<A> list = new List<A>();
@@ -338,43 +379,12 @@ namespace netQL.Lib
 
                 foreach (var prop in properties)
                 {
-                    dynamic value;
-                    var columnName = prop.GetCustomAttribute<ColumnAttribute>()?.Name ?? prop.Name;
+                    var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                    var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
                     if (reader.IsColumnExist(columnName))
                     {
-                        if (prop.PropertyType == typeof(int))
-                        {
-                            value = reader.GetValue<int>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(short))
-                        {
-                            value = reader.GetValue<short>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(DateTime))
-                        {
-                            value = reader.GetValue<DateTime>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(double))
-                        {
-                            value = reader.GetValue<double>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(long))
-                        {
-                            value = reader.GetValue<long>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(char))
-                        {
-                            value = reader.GetValue<char>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(bool))
-                        {
-                            value = reader.GetValue<bool>(columnName);
-                        }
-                        else
-                        {
-                            value = reader.GetValue<string>(columnName);
-                        }
-                        prop.SetValue(data, Convert.ChangeType(value, prop.PropertyType), null);
+                        dynamic value = GetReaderValueByType(reader, columnName, prop.PropertyType);
+                        prop.SetValue(data, value, null);
                     }
                 }
                 list.Add(data);
@@ -389,43 +399,12 @@ namespace netQL.Lib
                 var properties = data.GetType().GetProperties();
                 foreach (var prop in properties)
                 {
-                    dynamic value;
-                    var columnName = prop.GetCustomAttribute<ColumnAttribute>()?.Name ?? prop.Name;
+                    var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                    var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
                     if (reader.IsColumnExist(columnName))
                     {
-                        if (prop.PropertyType == typeof(int))
-                        {
-                            value = reader.GetValue<int>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(short))
-                        {
-                            value = reader.GetValue<short>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(DateTime))
-                        {
-                            value = reader.GetValue<DateTime>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(double))
-                        {
-                            value = reader.GetValue<double>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(long))
-                        {
-                            value = reader.GetValue<long>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(char))
-                        {
-                            value = reader.GetValue<char>(columnName);
-                        }
-                        else if (prop.PropertyType == typeof(bool))
-                        {
-                            value = reader.GetValue<bool>(columnName);
-                        }
-                        else
-                        {
-                            value = reader.GetValue<string>(columnName);
-                        }
-                        prop.SetValue(data, Convert.ChangeType(value, prop.PropertyType), null);
+                        dynamic value = GetReaderValueByType(reader, columnName, prop.PropertyType);
+                        prop.SetValue(data, value, null);
                     }
                 }
                 return;

@@ -27,19 +27,52 @@ namespace netQL.Lib
             whereValues = new List<SetWhere>();
             bulkInsertData = new List<object>();
         }
-        public SqlModel<T> Bulk(object dataBulk)
+        public SqlModel<T> SetBulk(object data)
         {
-            if (dataBulk is Array)
+            if (data is Array)
             {
-                var dataList = (Array)dataBulk;
-                foreach (var data in dataList)
+                throw new Exception("Bulk Update it's not support for array data");
+            }
+            var properties = data.GetType().GetProperties().AsEnumerable();
+            int propertiesLength = properties.Count();
+            int index = 0;
+
+            for (int i = 0; i < propertiesLength; i++)
+            {
+                var prop = properties.ElementAt(i);
+
+                // field with underscore will skipped
+                if (prop.Name.First() == '_') continue;
+                else
                 {
-                    bulkInsertData.Add(data);
+                    var valueProp = prop.GetValue(data);
+                    var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                    var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
+                    SetValue(columnName, valueProp, GetType(prop.PropertyType));
                 }
             }
-            else
+            return this;
+        }
+        public SqlModel<T> Bulk(object dataBulk)
+        {
+            if (sqlModelType == SqlModelType.INSERT)
             {
-                bulkInsertData.Add(dataBulk);
+                if (dataBulk is Array)
+                {
+                    var dataList = (Array)dataBulk;
+                    foreach (var data in dataList)
+                    {
+                        bulkInsertData.Add(data);
+                    }
+                }
+                else
+                {
+                    bulkInsertData.Add(dataBulk);
+                }
+            }
+            else if (sqlModelType == SqlModelType.UPDATE)
+            {
+                return SetBulk(dataBulk);
             }
             return this;
         }
@@ -59,6 +92,26 @@ namespace netQL.Lib
         {
             sqlModelType = SqlModelType.DELETE;
             query = "DELETE FROM " + quotSql + tableName + quotSql;
+            return this;
+        }
+        public SqlModel<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        {
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
+            return this;
+        }
+        public SqlModel<T> OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        {
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
+            return this;
+        }
+        public SqlModel<T> WhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        {
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
+            return this;
+        }
+        public SqlModel<T> WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        {
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
         public SqlModel<T> Where(string columnName, object value, Func<string, string> customBind = null)
@@ -88,7 +141,10 @@ namespace netQL.Lib
         }
         public SqlModel<T> AddValue(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
         {
-            columnValues.Add(new Set { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
+            if (value == null)
+                AddRawValue(columnName, "NULL");
+            else
+                columnValues.Add(new Set { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
         public SqlModel<T> AddRawValue(string columnName, string value)
@@ -103,7 +159,10 @@ namespace netQL.Lib
         }
         public SqlModel<T> SetRawValue(string columnName, string value)
         {
-            AddRawValue(columnName, value);
+            if (value == null)
+                SetRawValue(columnName, "NULL");
+            else
+                AddRawValue(columnName, value);
             return this;
         }
 
@@ -188,6 +247,7 @@ namespace netQL.Lib
                 query += " VALUES (" + bindings.TrimStart(',') + ")";
             }
         }
+
         private string GenerateBulkInsertBind()
         {
             string resultValuesQuery = string.Empty;
@@ -206,15 +266,17 @@ namespace netQL.Lib
                     var prop = properties.ElementAt(i);
                     var columnName = prop.Name + index;
                     var valueProp = prop.GetValue(data);
-
                     // field with underscore will skipped
                     if (columnName.First() == '_') continue;
-                    else
-                    {
-                        AddValue(columnName, valueProp, GetType(valueProp));
+
+                    AddValue(columnName, valueProp, GetType(prop.PropertyType));
+
+                    if (valueProp != null)
                         colValues += "," + bindSymbol + columnName;
-                    }
+                    else
+                        colValues += ",NULL";
                     // generate column name for insert
+
                     if (index == 0)
                     {
                         insertColumn += "," + WrapQuot(prop.Name);
