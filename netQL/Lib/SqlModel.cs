@@ -4,6 +4,8 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Data.Common;
+using System.Reflection;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace netQL.Lib
 {
@@ -279,6 +281,8 @@ namespace netQL.Lib
 
                     if (index == 0)
                     {
+                        var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                        columnName = columnAttr != null ? columnAttr.Name : prop.Name;
                         insertColumn += "," + WrapQuot(prop.Name);
                     }
                 }

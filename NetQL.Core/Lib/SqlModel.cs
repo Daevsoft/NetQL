@@ -281,6 +281,8 @@ namespace netQL.Lib
 
                     if (index == 0)
                     {
+                        var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                        columnName = columnAttr != null ? columnAttr.Name : prop.Name;
                         insertColumn += "," + WrapQuot(prop.Name);
                     }
                 }
