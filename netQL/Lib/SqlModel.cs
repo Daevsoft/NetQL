@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
-using System.Data.Common;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -37,7 +35,6 @@ namespace netQL.Lib
             }
             var properties = data.GetType().GetProperties().AsEnumerable();
             int propertiesLength = properties.Count();
-            int index = 0;
 
             for (int i = 0; i < propertiesLength; i++)
             {
@@ -278,12 +275,11 @@ namespace netQL.Lib
                     else
                         colValues += ",NULL";
                     // generate column name for insert
-
                     if (index == 0)
                     {
                         var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
                         columnName = columnAttr != null ? columnAttr.Name : prop.Name;
-                        insertColumn += "," + WrapQuot(prop.Name);
+                        insertColumn += "," + WrapQuot(columnName);
                     }
                 }
                 index++;
