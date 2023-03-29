@@ -54,23 +54,31 @@ namespace netQL.Lib
             {
                 return DbType.String;
             }
-            else if (typeProp == typeof(int))
+            else if (typeProp == typeof(int) || typeProp == typeof(int?))
             {
                 return DbType.Int32;
             }
-            else if (typeProp == typeof(long))
+            else if (typeProp == typeof(long) || typeProp == typeof(long?))
             {
                 return DbType.Int64;
             }
-            else if (typeProp == typeof(DateTime))
+            else if (typeProp == typeof(DateTime) || typeProp == typeof(DateTime?))
             {
                 return DbType.DateTime;
             }
-            else if (typeProp == typeof(double))
+            else if (typeProp == typeof(double) || typeProp == typeof(double?))
             {
                 return DbType.Double;
             }
-            else if (typeProp == typeof(bool))
+            else if (typeProp == typeof(bool) || typeProp == typeof(bool?))
+            {
+                return DbType.Boolean;
+            }
+            else if (typeProp == typeof(decimal) || typeProp == typeof(decimal?))
+            {
+                return DbType.Decimal;
+            }
+            else if (typeProp == typeof(bool) || typeProp == typeof(bool?))
             {
                 return DbType.Boolean;
             }

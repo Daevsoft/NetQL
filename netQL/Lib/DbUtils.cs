@@ -342,12 +342,6 @@ namespace netQL.Lib
             {
                 return reader.GetValue<DateTime>(columnName);
             }
-            else if (type == typeof(DateTime?))
-            {
-                var value = reader.GetValue<string>(columnName);
-                if (value == string.Empty) return null;
-                return DateTime.Parse(value);
-            }
             else if (type == typeof(double))
             {
                 return reader.GetValue<double>(columnName);
@@ -363,6 +357,66 @@ namespace netQL.Lib
             else if (type == typeof(bool))
             {
                 return reader.GetValue<bool>(columnName);
+            }
+            else if (type == typeof(decimal))
+            {
+                return reader.GetValue<decimal>(columnName);
+            }
+            else if (type == typeof(DateTime?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(DateTime?) : (DateTime?)Convert.ChangeType(DateTime.Parse(value), t);
+            }
+            else if (type == typeof(int?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(int?) : (int?)Convert.ChangeType(int.Parse(value), t);
+            }
+            else if (type == typeof(long?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(long?) : (long?)Convert.ChangeType(long.Parse(value), t);
+            }
+            else if (type == typeof(short?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(short?) : (short?)Convert.ChangeType(short.Parse(value), t);
+            }
+            else if (type == typeof(char?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(char?) : (char?)Convert.ChangeType(char.Parse(value), t);
+            }
+            else if (type == typeof(double?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(double?) : (double?)Convert.ChangeType(double.Parse(value), t);
+            }
+            else if (type == typeof(decimal?))
+            {
+                var value = reader.GetValue<string>(columnName);
+                Type t = type;
+                t = Nullable.GetUnderlyingType(t) ?? t;
+                return (value == null || DBNull.Value.Equals(value)) ?
+                default(decimal?) : (decimal?)Convert.ChangeType(decimal.Parse(value), t);
             }
             else
             {

@@ -17,7 +17,14 @@ namespace netQL.Lib
         }
         public bool IsColumnExist(string columnName)
         {
-            return reader.GetOrdinal(columnName) > -1;
+            try
+            {
+                return reader.GetOrdinal(columnName) != -1;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
         private string FixNumeric<A>(object value)
         {
