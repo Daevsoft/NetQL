@@ -19,6 +19,21 @@ namespace netQL.Lib
     {
         SqlServer, MySql, PostgreSQL, Oracle
     }
+    public class Str
+    {
+        public static bool IsRaw(ref string sql)
+        {
+            if (sql.Length < 4) return false;
+            bool isResult = sql[0] == '!' && sql[1] == '!';
+            if (isResult)
+                sql = sql.Substring(2);
+            return isResult;
+        }
+        public static string Raw(string sql)
+        {
+            return "!!" + sql;
+        }
+    }
     public partial class DbUtils<T> : QueryCommon
     {
         private dynamic connection;
@@ -109,17 +124,21 @@ namespace netQL.Lib
         }
         public DbUtils<T> Select(string[] columns, string table)
         {
-            string sql = "SELECT " + string.Join(',', columns.Select(x =>
-            WrapQuot(WrapQuot(x), true)))
+            string sql = "SELECT " + string.Join(",", columns.Select(x =>
+                Str.IsRaw(ref x) ? x.ToString() : WrapQuot(WrapQuot(x), true)))
                 + " FROM " + WrapQuot(table);
             return Query(sql);
         }
         public DbUtils<T> Select(string columns, string table)
         {
+            if (Str.IsRaw(ref columns))
+            {
+                string sql = "SELECT " + columns + " FROM " + WrapQuot(table);
+                return Query(sql);
+            }
             var xColumns = columns.Split(',').Select(x => x.Trim()).ToArray();
             return Select(xColumns, table);
         }
-
         public DbUtils<T> Where(Func<DbUtils<T>, DbUtils<T>> wheres)
         {
             var dbClone = Clone();
@@ -252,14 +271,14 @@ namespace netQL.Lib
             dbClone = subQuery(dbClone);
             dbClone.identity = alias;
             string queryTarget = dbClone.GenerateQuery();
-            return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2);
+            return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2, joinType);
         }
         private DbUtils<T> NewJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
         {
             DbUtils<T> dbClone = Clone();
             dbClone = subQuery(dbClone);
             string queryTarget = dbClone.GenerateQuery();
-            return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2);
+            return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2, joinType);
         }
         public DbUtils<T> Join(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2)
         {
