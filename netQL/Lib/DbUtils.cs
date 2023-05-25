@@ -148,7 +148,8 @@ namespace netQL.Lib
         }
         public DbUtils<T> Where(string columnName, object value, Func<string, string> customBind)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind });
             return this;
         }
         public DbUtils<T> Where(string columnName, object value)
@@ -158,17 +159,20 @@ namespace netQL.Lib
         }
         public DbUtils<T> Where(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
             return this;
         }
         public DbUtils<T> OrWhere(string columnName, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
             return this;
         }
         public DbUtils<T> OrWhere(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhere { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
         public DbUtils<T> WhereRaw(string whereQuery)
@@ -183,22 +187,26 @@ namespace netQL.Lib
         }
         public DbUtils<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
             return this;
         }
         public DbUtils<T> OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
             return this;
         }
         public DbUtils<T> WhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
             return this;
         }
         public DbUtils<T> WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_') + "_" + identity, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
+            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
         public DbUtils<T> OrderBy(string columns, Order orderType = Order.ASC)
