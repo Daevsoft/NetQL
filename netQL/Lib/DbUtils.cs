@@ -139,11 +139,32 @@ namespace netQL.Lib
             var xColumns = columns.Split(',').Select(x => x.Trim()).ToArray();
             return Select(xColumns, table);
         }
-        public DbUtils<T> Where(Func<DbUtils<T>, DbUtils<T>> wheres)
+        public DbUtils<T> WhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        {
+            return Where(columnName, "IN", subQuery);
+        }
+        public DbUtils<T> WhereIn<B>(string columnName, B[] values)
+        {
+            return WhereRaw(columnName, "IN", $"({string.Join(',', values.Select(x => "'" + x + "'"))})");
+        }
+        public DbUtils<T> OrWhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        {
+            return Where(columnName, "IN", subQuery, "OR");
+        }
+        public DbUtils<T> Where(string columnName, string valueOperator, Func<DbUtils<T>, DbUtils<T>> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
-            var getWheres = wheres(dbClone);
-            whereValues.AddRange(getWheres.whereValues);
+            var subQuery = wheres(dbClone);
+            // set default operator WHERE
+            if (whereValues.Count == 0) oOperator = "WHERE";
+
+            whereValues.Add(new SubWhere<T>
+            {
+                Column = columnName,
+                Operator = oOperator,
+                ValueOperator = valueOperator,
+                Value = "(" + subQuery.GenerateQuery() + ")",
+            });
             return this;
         }
         public DbUtils<T> Where(string columnName, object value, Func<string, string> customBind)
@@ -263,8 +284,9 @@ namespace netQL.Lib
         }
         public DbUtils<T> Clone()
         {
-            char quot = this.quotSql == null ? '\'' : this.quotSql[0];
-            var cloned = new DbUtils<T>(connection, quot);
+            char quot = quotSql == null ? '\'' : quotSql[0];
+            char symbol = bindSymbol == null ? '\'' : bindSymbol[0];
+            var cloned = new DbUtils<T>(connection, quot, symbol);
             cloned.AttachParent(this);
             return cloned;
         }
