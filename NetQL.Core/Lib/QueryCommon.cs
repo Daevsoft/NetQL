@@ -26,7 +26,7 @@ namespace netQL.Lib
         }
         protected string WrapQuot(string name, bool reverseQuot = false)
         {
-            if (string.IsNullOrEmpty(name))
+            if (Str.IsRaw(ref name) || string.IsNullOrEmpty(name))
             {
                 return name;
             }
