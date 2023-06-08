@@ -44,6 +44,10 @@ namespace netQL.Lib
         private DbUtils<T> parentDb;
         private string identity = new Random().Next(200).ToString();
         private List<string> groupByColumns;
+        public List<SetWhere> GetWhereValues()
+        {
+            return whereValues;
+        }
         public DbUtils(T connection, Provider provider)
         {
             if (provider == Provider.MySql)
@@ -164,6 +168,7 @@ namespace netQL.Lib
                 Operator = oOperator,
                 ValueOperator = valueOperator,
                 Value = "(" + subQuery.GenerateQuery() + ")",
+                SubDbUtil = subQuery
             });
             return this;
         }

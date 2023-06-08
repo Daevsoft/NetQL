@@ -98,7 +98,7 @@ namespace netQL.Lib
             public string OnValue { set; get; }
         }
 
-        protected class Set
+        public class Set
         {
             public bool IsFromChild { set; get; }
             public string Column { set; get; }
@@ -107,12 +107,12 @@ namespace netQL.Lib
             public object Value { set; get; }
             public Func<string, string> CustomBind { set; get; }
         }
-        protected class SetWhere : Set
+        public class SetWhere : Set
         {
             public string ValueOperator = "=";
             public string Operator = "AND"; // AND OR
         }
-        protected class SetWhereRaw : SetWhere
+        public class SetWhereRaw : SetWhere
         {
             public bool IsRaw { set; get; }
         }

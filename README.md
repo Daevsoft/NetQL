@@ -137,6 +137,26 @@ var isLondonExist = db.Select("table_hotel")
                 .Where("City", "London")
                 .IsExist();
 ```
+### With complex query for update
+``` C#
+  db.Update("UserSubscriptions")
+      .SetValue("EmailSent", true)
+      .WhereIn("UserId", _db => _db
+                  .Select(new string[] {
+                          "b.Id"
+                      }, "UserSubscriptions a")
+                  .Join("Users b", "a.UserId", "b.Id")
+                  .Where(Str.Raw("date_part('day', a.\"ExpiredDate\" - current_timestamp)"),
+                          "<=", subQuery => subQuery
+                                              .Select(Str.Raw("cast(config_param as Int)"), "app_config")
+                                              .Where("config_id", "EMAIL_REMIND_SUBSCRIPTION_BEFORE_DAY")
+                          )
+                  .Where("a.EmailSent", false)
+                  .WhereRaw("a.ExpiredDate", ">=", "current_timestamp")
+                  .GroupBy("b.Id"))
+      .Where("Status", UserSubscriptionsStatus.ACTIVE)
+      .Execute();
+```
 ### Where
 ``` C#
   ...
