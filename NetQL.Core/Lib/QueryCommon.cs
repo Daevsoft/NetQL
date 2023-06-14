@@ -47,6 +47,21 @@ namespace netQL.Lib
                 return FixQuot(name);
             else return name;
         }
+
+        static string Abjads = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        protected string FixBindName(string columnName, string additional = "")
+        {
+            string result;
+            if (Str.IsRaw(ref columnName))
+            {
+                result = "P" + Abjads[(columnName.Length % columnName.Length) - 1];
+            }
+            else
+            {
+                result = columnName;
+            }
+            return result.Replace('.', '_') + additional;
+        }
         protected DbType GetType(Type typeProp)
         {
             if (typeProp == typeof(string))

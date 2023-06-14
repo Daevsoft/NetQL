@@ -143,48 +143,49 @@ namespace netQL.Lib
         }
         public SqlModel<T> Where<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
         {
-            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
             return this;
         }
         public SqlModel<T> OrWhere<B>(string columnName, B value, Func<string, string> customBind = null)
         {
-            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
             return this;
         }
         public SqlModel<T> OrWhere<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
         {
-            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
         public SqlModel<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
             return this;
         }
         public SqlModel<T> OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
             return this;
         }
         public SqlModel<T> WhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
             return this;
         }
         public SqlModel<T> WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
+            whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
         public SqlModel<T> AddValue(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
         {
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             if (value == null)
                 AddRawValue(columnName, "NULL");
             else
-                columnValues.Add(new Set { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, VType = dbType, CustomBind = customBind });
+                columnValues.Add(new Set { Column = columnName, BindName = bindName, Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
         public SqlModel<T> AddRawValue(string columnName, string value)
@@ -261,7 +262,7 @@ namespace netQL.Lib
                 }
                 else
                 {
-                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
+                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
                 }
                 setQuery += ',' + WrapQuot(_value.Column) + '=' + bindingValue;
             }
@@ -288,7 +289,7 @@ namespace netQL.Lib
                     }
                     else
                     {
-                        bindings += "," + (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
+                        bindings += "," + (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
                     }
                 }
                 query += "(" + columns.TrimStart(',') + ")";
@@ -354,7 +355,7 @@ namespace netQL.Lib
                 }
                 else
                 {
-                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(":" + _value.BindName) : ":" + _value.BindName);
+                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
                 }
                 whereQuery += ' ' + _value.Operator + " " + WrapQuot(_value.Column) + " " + _value.ValueOperator + " " + bindingValue;
             }
