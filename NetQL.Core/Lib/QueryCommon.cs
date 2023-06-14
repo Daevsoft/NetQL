@@ -54,7 +54,7 @@ namespace netQL.Lib
             string result;
             if (Str.IsRaw(ref columnName))
             {
-                result = "P" + Abjads[(columnName.Length % columnName.Length) - 1];
+                result = "P" + Abjads[columnName.Length % (columnName.Length - 1)];
             }
             else
             {

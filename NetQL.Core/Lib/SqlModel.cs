@@ -132,7 +132,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> Where<B>(string columnName, B value, Func<string, string> customBind)
         {
-            string bindName = columnName.Replace('.', '_') + "_" + identity + "_" + whereValues.Count;
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind });
             return this;
         }
@@ -179,7 +179,12 @@ namespace netQL.Lib
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
-        public SqlModel<T> AddValue(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
+        public SqlModel<T> AddValue(string columnName, object value, Func<string, string> customBind = null)
+        {
+            AddValue(columnName, value, GetType(value), customBind);
+            return this;
+        }
+        public SqlModel<T> AddValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             if (value == null)
@@ -193,7 +198,12 @@ namespace netQL.Lib
             columnValues.Add(new SetRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, IsRaw = true });
             return this;
         }
-        public SqlModel<T> SetValue(string columnName, object value, DbType dbType = DbType.String, Func<string, string> customBind = null)
+        public SqlModel<T> SetValue<B>(string columnName, B value, Func<string, string> customBind = null)
+        {
+            AddValue(columnName, value, GetType(value), customBind);
+            return this;
+        }
+        public SqlModel<T> SetValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
             AddValue(columnName, value, dbType, customBind);
             return this;
