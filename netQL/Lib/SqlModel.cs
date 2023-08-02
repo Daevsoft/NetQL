@@ -99,7 +99,7 @@ namespace netQL.Lib
         }
         public SqlModel<T> WhereIn<B>(string columnName, B[] values)
         {
-            return WhereRaw(columnName, "IN", $"({string.Join(',', values.Select(x => "'" + x + "'"))})");
+            return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
         }
         public SqlModel<T> OrWhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
         {
@@ -359,7 +359,7 @@ namespace netQL.Lib
             {
                 if (firstCondition) { _value.Operator = string.Empty; firstCondition = false; }
                 var bindingValue = string.Empty;
-                if (_value.GetType() == typeof(SetWhereRaw) && (_value as SetWhereRaw).IsRaw)
+                if ((_value.GetType() == typeof(SetWhereRaw) && (_value as SetWhereRaw).IsRaw) || _value.GetType() == typeof(SubWhere<T>))
                 {
                     bindingValue = _value.Value.ToString();
                 }

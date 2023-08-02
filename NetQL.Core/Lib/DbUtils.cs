@@ -149,7 +149,7 @@ namespace netQL.Lib
         }
         public DbUtils<T> WhereIn<B>(string columnName, B[] values)
         {
-            return WhereRaw(columnName, "IN", $"({string.Join(',', values.Select(x => "'" + x + "'"))})");
+            return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
         }
         public DbUtils<T> OrWhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
         {
@@ -237,7 +237,7 @@ namespace netQL.Lib
         }
         public DbUtils<T> OrderBy(string columns, Order orderType = Order.ASC)
         {
-            orderAdditional = " ORDER BY " + string.Join(',', columns.Split(',').Select(x => WrapQuot(x))) + " " + orderType.ToString();
+            orderAdditional = " ORDER BY " + string.Join(",", columns.Split(',').Select(x => WrapQuot(x))) + " " + orderType.ToString();
             return this;
         }
         public DbUtils<T> Asc(string columns)
@@ -378,7 +378,7 @@ namespace netQL.Lib
             string groupBy = string.Empty;
             if (groupByColumns != null && groupByColumns.Count > 0)
             {
-                groupBy += " GROUP BY " + string.Join(',', groupByColumns.Select(x => WrapQuot(x)));
+                groupBy += " GROUP BY " + string.Join(",", groupByColumns.Select(x => WrapQuot(x)));
             }
             return groupBy;
         }
