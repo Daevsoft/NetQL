@@ -331,7 +331,7 @@ namespace netQL.Lib
                     AddValue(columnName, valueProp, GetType(prop.PropertyType));
 
                     if (valueProp != null)
-                        colValues += "," + bindSymbol + columnName;
+                        colValues += "," + bindSymbol + columnValues.Last().BindName;
                     else
                         colValues += ",NULL";
                     // generate column name for insert
