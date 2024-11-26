@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.Transactions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data.SqlTypes;
 
 /*
  Author by   : Muhamad Deva Arofi
@@ -34,21 +35,23 @@ namespace netQL.Lib
             return "!!" + sql;
         }
     }
-    public partial class DbUtils<T> : QueryCommon
+    public partial class DbUtils : QueryCommon
     {
-        private dynamic connection;
+        private IDbConnection connection;
         private dynamic command;
         private dynamic transaction;
         private List<SetWhere> whereValues;
         private List<Join> joinValues;
-        private DbUtils<T> parentDb;
+        private DbUtils parentDb;
         private string identity = new Random().Next(200).ToString();
         private List<string> groupByColumns;
+        private string ConnectionString;
+        private Type ConnectionType;
         public List<SetWhere> GetWhereValues()
         {
             return whereValues;
         }
-        public DbUtils(T connection, Provider provider)
+        public DbUtils(IDbConnection connection, Provider provider)
         {
             if (provider == Provider.MySql)
             {
@@ -67,33 +70,37 @@ namespace netQL.Lib
                 throw new Exception("Provider not supported");
             }
         }
-        public DbUtils(T connection)
+        public DbUtils(IDbConnection connection)
         {
-            if (typeof(T).Name == "MySqlConnection")
+            if (connection.GetType().Name == "MySqlConnection")
             {
                 Setup(connection, '`', '`', '@');
             }
-            else if (typeof(T).Name == "NpgsqlConnection" || typeof(T).Name == "OracleConnection")
+            else if (connection.GetType().Name == "NpgsqlConnection" || connection.GetType().Name == "OracleConnection")
             {
                 Setup(connection, '"', '"', ':');
             }
-            else if (typeof(T).Name == "SqlConnection")
+            else if (connection.GetType().Name == "SqlConnection")
             {
                 Setup(connection, '[', ']', '@');
+            }
+            else if (connection.GetType().Name == "SqliteConnection")
+            {
+                Setup(connection, ' ', ' ', '@');
             }
             else
             {
                 throw new Exception("Provider not supported");
             }
         }
-        public DbUtils(T connection, char quotSql, char bindSymbol = '@')
+        public DbUtils(IDbConnection connection, char quotSql, char bindSymbol = '@')
         {
             char endQuot = quotSql;
             if (quotSql == '[')
                 endQuot = ']';
             Setup(connection, quotSql, endQuot, bindSymbol);
         }
-        private void Setup(T connection, char quotSql, char endQuotSql, char bindSymbol)
+        private void Setup(IDbConnection connection, char quotSql, char endQuotSql, char bindSymbol)
         {
             this.connection = connection;
             command = this.connection.CreateCommand();
@@ -102,8 +109,10 @@ namespace netQL.Lib
             whereValues = new List<SetWhere>();
             joinValues = new List<Join>();
             this.bindSymbol = bindSymbol.ToString();
+            ConnectionString = connection.ConnectionString;
+            ConnectionType = connection.GetType();
         }
-        public DbUtils<T> AddParameter(string name, object value, DbType type = DbType.String)
+        public DbUtils AddParameter(string name, object value, DbType type = DbType.String)
         {
             var newDbParam = command.CreateParameter();
             newDbParam.DbType = type;
@@ -113,7 +122,7 @@ namespace netQL.Lib
             return this;
         }
 
-        public DbUtils<T> Query(string sql, CommandType commandType = CommandType.Text)
+        public DbUtils Query(string sql, CommandType commandType = CommandType.Text)
         {
             OpenConnection();
             command.CommandType = commandType;
@@ -121,19 +130,19 @@ namespace netQL.Lib
             command.Parameters.Clear();
             return this;
         }
-        public DbUtils<T> Select(string table)
+        public DbUtils Select(string table)
         {
             string sql = "SELECT * FROM " + WrapQuot(table);
             return Query(sql);
         }
-        public DbUtils<T> Select(string[] columns, string table)
+        public DbUtils Select(string[] columns, string table)
         {
             string sql = "SELECT " + string.Join(",", columns.Select(x =>
                 Str.IsRaw(ref x) ? x.ToString() : WrapQuot(WrapQuot(x), true)))
                 + " FROM " + WrapQuot(table);
             return Query(sql);
         }
-        public DbUtils<T> Select(string columns, string table)
+        public DbUtils Select(string columns, string table)
         {
             if (Str.IsRaw(ref columns))
             {
@@ -143,26 +152,26 @@ namespace netQL.Lib
             var xColumns = columns.Split(',').Select(x => x.Trim()).ToArray();
             return Select(xColumns, table);
         }
-        public DbUtils<T> WhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        public DbUtils WhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery);
         }
-        public DbUtils<T> WhereIn<B>(string columnName, B[] values)
+        public DbUtils WhereIn<B>(string columnName, B[] values)
         {
             return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
         }
-        public DbUtils<T> OrWhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        public DbUtils OrWhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery, "OR");
         }
-        public DbUtils<T> Where(string columnName, string valueOperator, Func<DbUtils<T>, DbUtils<T>> wheres, string oOperator = "AND")
+        public DbUtils Where(string columnName, string valueOperator, Func<DbUtils, DbUtils> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
             var subQuery = wheres(dbClone);
             // set default operator WHERE
             if (whereValues.Count == 0) oOperator = "WHERE";
 
-            whereValues.Add(new SubWhere<T>
+            whereValues.Add(new SubWhere
             {
                 Column = columnName,
                 Operator = oOperator,
@@ -172,93 +181,93 @@ namespace netQL.Lib
             });
             return this;
         }
-        public DbUtils<T> Where(string columnName, object value, Func<string, string> customBind)
+        public DbUtils Where(string columnName, object value, Func<string, string> customBind)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind });
             return this;
         }
-        public DbUtils<T> Where(string columnName, object value)
+        public DbUtils Where(string columnName, object value)
         {
             Where(columnName, value, null);
             return this;
         }
-        public DbUtils<T> Where(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public DbUtils Where(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName,  "_" + identity + "_" + whereValues.Count);
+            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
             return this;
         }
-        public DbUtils<T> OrWhere(string columnName, object value, Func<string, string> customBind = null)
+        public DbUtils OrWhere(string columnName, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
             return this;
         }
-        public DbUtils<T> OrWhere(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public DbUtils OrWhere(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
-        public DbUtils<T> WhereRaw(string whereQuery)
+        public DbUtils WhereRaw(string whereQuery)
         {
             whereValues.Add(new SetWhereRaw { Column = null, BindName = null, Value = whereQuery, ValueOperator = string.Empty });
             return this;
         }
-        public DbUtils<T> OrWhereRaw(string whereQuery)
+        public DbUtils OrWhereRaw(string whereQuery)
         {
             whereValues.Add(new SetWhereRaw { Column = null, BindName = null, Value = whereQuery, Operator = "OR", IsRaw = true, ValueOperator = string.Empty });
             return this;
         }
-        public DbUtils<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        public DbUtils OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
             return this;
         }
-        public DbUtils<T> OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public DbUtils OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
             return this;
         }
-        public DbUtils<T> WhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        public DbUtils WhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
             return this;
         }
-        public DbUtils<T> WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public DbUtils WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
-        public DbUtils<T> OrderBy(string columns, Order orderType = Order.ASC)
+        public DbUtils OrderBy(string columns, Order orderType = Order.ASC)
         {
             orderAdditional = " ORDER BY " + string.Join(",", columns.Split(',').Select(x => WrapQuot(x))) + " " + orderType.ToString();
             return this;
         }
-        public DbUtils<T> Asc(string columns)
+        public DbUtils Asc(string columns)
         {
             return OrderBy(columns, Order.ASC);
         }
-        public DbUtils<T> Desc(string columns)
+        public DbUtils Desc(string columns)
         {
             return OrderBy(columns, Order.DESC);
         }
-        public DbUtils<T> Limit(int length = 1)
+        public DbUtils Limit(int length = 1)
         {
             limitAdditional = " LIMIT " + length.ToString();
             return this;
         }
-        public DbUtils<T> Limit(int start, int length = 1)
+        public DbUtils Limit(int start, int length = 1)
         {
             limitAdditional = " LIMIT " + length.ToString() + " OFFSET " + start;
             return this;
         }
-        private DbUtils<T> AddJoinSet(string tableName, string onColumn1, string onColumn2, JoinTypes type = JoinTypes.INNER)
+        private DbUtils AddJoinSet(string tableName, string onColumn1, string onColumn2, JoinTypes type = JoinTypes.INNER)
         {
             // check if tableName is sub query or not
             if (tableName[0] != '(')
@@ -271,71 +280,71 @@ namespace netQL.Lib
             joinValues.Add(joinObject);
             return this;
         }
-        public DbUtils<T> Join(string tableName, string onColumn1, string onColumn2)
+        public DbUtils Join(string tableName, string onColumn1, string onColumn2)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2);
         }
-        public DbUtils<T> LeftJoin(string tableName, string onColumn1, string onColumn2)
+        public DbUtils LeftJoin(string tableName, string onColumn1, string onColumn2)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2, JoinTypes.LEFT);
         }
-        public DbUtils<T> RightJoin(string tableName, string onColumn1, string onColumn2)
+        public DbUtils RightJoin(string tableName, string onColumn1, string onColumn2)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2, JoinTypes.RIGHT);
         }
-        public void AttachParent(DbUtils<T> parent)
+        public void AttachParent(DbUtils parent)
         {
             parentDb = parent;
         }
-        public DbUtils<T> Clone()
+        public DbUtils Clone()
         {
             char quot = quotSql == null ? '\'' : quotSql[0];
             char symbol = bindSymbol == null ? '\'' : bindSymbol[0];
-            var cloned = new DbUtils<T>(connection, quot, symbol);
+            var cloned = new DbUtils(connection, quot, symbol);
             cloned.AttachParent(this);
             return cloned;
         }
-        public DbUtils<T> Alias(string alias)
+        public DbUtils Alias(string alias)
         {
             identity = alias;
             return this;
         }
-        private DbUtils<T> NewJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string alias, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
+        private DbUtils NewJoin(Func<DbUtils, DbUtils> subQuery, string alias, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
         {
-            DbUtils<T> dbClone = Clone();
+            DbUtils dbClone = Clone();
             dbClone = subQuery(dbClone);
             dbClone.identity = alias;
             string queryTarget = dbClone.GenerateQuery();
             return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2, joinType);
         }
-        private DbUtils<T> NewJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
+        private DbUtils NewJoin(Func<DbUtils, DbUtils> subQuery, string onColumn1, string onColumn2, JoinTypes joinType = JoinTypes.INNER)
         {
-            DbUtils<T> dbClone = Clone();
+            DbUtils dbClone = Clone();
             dbClone = subQuery(dbClone);
             string queryTarget = dbClone.GenerateQuery();
             return AddJoinSet("(" + queryTarget + ") " + dbClone.identity, onColumn1, onColumn2, joinType);
         }
-        public DbUtils<T> Join(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2)
+        public DbUtils Join(Func<DbUtils, DbUtils> subQuery, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, onColumn1, onColumn2);
         }
-        public DbUtils<T> Join(Func<DbUtils<T>, DbUtils<T>> subQuery, string alias, string onColumn1, string onColumn2)
+        public DbUtils Join(Func<DbUtils, DbUtils> subQuery, string alias, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, alias, onColumn1, onColumn2);
         }
-        public DbUtils<T> LeftJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2)
+        public DbUtils LeftJoin(Func<DbUtils, DbUtils> subQuery, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, onColumn1, onColumn2, JoinTypes.LEFT);
         }
-        public DbUtils<T> LeftJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string alias, string onColumn1, string onColumn2)
+        public DbUtils LeftJoin(Func<DbUtils, DbUtils> subQuery, string alias, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, alias, onColumn1, onColumn2, JoinTypes.LEFT);
         }
-        public DbUtils<T> RightJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string onColumn1, string onColumn2)
+        public DbUtils RightJoin(Func<DbUtils, DbUtils> subQuery, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, onColumn1, onColumn2, JoinTypes.RIGHT);
         }
-        public DbUtils<T> RightJoin(Func<DbUtils<T>, DbUtils<T>> subQuery, string alias, string onColumn1, string onColumn2)
+        public DbUtils RightJoin(Func<DbUtils, DbUtils> subQuery, string alias, string onColumn1, string onColumn2)
         {
             return NewJoin(subQuery, alias, onColumn1, onColumn2, JoinTypes.RIGHT);
         }
@@ -499,6 +508,27 @@ namespace netQL.Lib
             });
             return list;
         }
+
+        public IEnumerable<A> ReadAsArray<A>()
+        {
+            List<A> data = new List<A>();
+            int rowCount = Read(reader =>
+            {
+                A row = reader.GetValue<A>(0);
+                data.Add(row);
+            });
+            return data;
+        }
+        public A ReadSingle<A>()
+        {
+            A data = default;
+            int rowCount = Read(reader =>
+            {
+                data = reader.GetValue<A>(0);
+                return;
+            });
+            return rowCount > 0 ? data : default;
+        }
         public A ReadAs<A>()
         {
             var data = (A)Activator.CreateInstance(typeof(A));
@@ -549,6 +579,7 @@ namespace netQL.Lib
                         rows++;
                     }
                     dataReader.Close();
+                    dataReader.Dispose();
                 }
                 Close();
             });
@@ -641,6 +672,11 @@ namespace netQL.Lib
         private void OpenConnection()
         {
             CloseConnection();
+            if (connection == null)
+            {
+                IDbConnection newConnection = (IDbConnection)Activator.CreateInstance(ConnectionType, ConnectionString);
+                connection = newConnection;
+            }
             connection.Open();
         }
         public void Close()
@@ -654,6 +690,7 @@ namespace netQL.Lib
             if (connection.State == ConnectionState.Open)
             {
                 connection.Close();
+                connection.Dispose();
             }
         }
         public void Rollback()
@@ -666,13 +703,13 @@ namespace netQL.Lib
             if (groupByColumns == null)
                 groupByColumns = new List<string>();
         }
-        public DbUtils<T> GroupBy(string columnName)
+        public DbUtils GroupBy(string columnName)
         {
             InitGroupBy();
             groupByColumns.Add(columnName);
             return this;
         }
-        public DbUtils<T> GroupBy(List<string> columnNames)
+        public DbUtils GroupBy(List<string> columnNames)
         {
             groupByColumns = columnNames;
             return this;
@@ -697,11 +734,11 @@ namespace netQL.Lib
             });
             return rows > 0;
         }
-        public SqlModel<T> Insert(string tableName)
+        public SqlModel Insert(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
+            return new SqlModel(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
         }
-        private void BindProperties<A>(SqlModel<T> dbUtil, A dataObject)
+        private void BindProperties<A>(SqlModel dbUtil, A dataObject)
         {
             if (dataObject == null) return;
 
@@ -723,9 +760,9 @@ namespace netQL.Lib
                 }
             }
         }
-        public SqlModel<T> Insert<A>(string tableName, A dataObject)
+        public SqlModel Insert<A>(string tableName, A dataObject)
         {
-            var _dbUtilTemp = new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
+            var _dbUtilTemp = new SqlModel(this, quotSql, endQuotSql, bindSymbol).Insert(tableName);
             if (dataObject is Array)
             {
                 _dbUtilTemp.Bulk(dataObject);
@@ -736,13 +773,13 @@ namespace netQL.Lib
             }
             return _dbUtilTemp;
         }
-        public SqlModel<T> Update(string tableName)
+        public SqlModel Update(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Update(tableName);
+            return new SqlModel(this, quotSql, endQuotSql, bindSymbol).Update(tableName);
         }
-        public SqlModel<T> Delete(string tableName)
+        public SqlModel Delete(string tableName)
         {
-            return new SqlModel<T>(this, quotSql, endQuotSql, bindSymbol).Delete(tableName);
+            return new SqlModel(this, quotSql, endQuotSql, bindSymbol).Delete(tableName);
         }
     }
 }

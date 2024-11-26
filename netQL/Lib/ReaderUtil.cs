@@ -7,7 +7,6 @@ using System.Data.Common;
 
 namespace netQL.Lib
 {
-
     public class ReaderUtil<T>
     {
         DbDataReader reader;
@@ -40,10 +39,19 @@ namespace netQL.Lib
 
             return _value;
         }
+        public D GetValue<D>(int ordinal)
+        {
+            dynamic? value = reader.GetFieldValue<D>(ordinal);
+            return ConvertValue(value);
+        }
         public D GetValue<D>(string columnName)
         {
-            dynamic value = reader.GetValue(columnName) == DBNull.Value
+            dynamic? value = reader.GetValue(columnName) == DBNull.Value
                         ? null : reader.GetValue(columnName);
+            return ConvertValue<D>(value);
+        }
+        private D ConvertValue<D>(dynamic value)
+        {
             Type vType = typeof(D);
             if (vType == typeof(string))
             {

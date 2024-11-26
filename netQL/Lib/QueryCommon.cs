@@ -47,14 +47,14 @@ namespace netQL.Lib
                 return FixQuot(name);
             else return name;
         }
-        
+
         static string Abjads = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         protected string FixBindName(string columnName, string additional = "")
         {
             string result;
             if (Str.IsRaw(ref columnName))
             {
-                result = "P" + Abjads[(columnName.Length % columnName.Length) - 1];
+                result = "P" + Abjads[columnName.Length % (columnName.Length - 1)];
             }
             else
             {
@@ -131,9 +131,9 @@ namespace netQL.Lib
         {
             public bool IsRaw { set; get; }
         }
-        protected class SubWhere<T> : SetWhere
+        protected class SubWhere : SetWhere
         {
-            public DbUtils<T> SubDbUtil { set; get; }
+            public DbUtils SubDbUtil { set; get; }
         }
         protected class SetRaw : Set
         {

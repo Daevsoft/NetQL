@@ -8,16 +8,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace netQL.Lib
 {
     enum SqlModelType { INSERT, UPDATE, DELETE }
-    public class SqlModel<T> : QueryCommon
+    public class SqlModel : QueryCommon
     {
         private string query;
         private SqlModelType sqlModelType;
         private List<Set> columnValues;
-        private DbUtils<T> dbUtils;
+        private DbUtils dbUtils;
         private List<SetWhere> whereValues;
         private List<object> bulkInsertData;
 
-        public SqlModel(DbUtils<T> dbUtils, string quotSql, string endQuotSql, string bindSymbol)
+        public SqlModel(DbUtils dbUtils, string quotSql, string endQuotSql, string bindSymbol)
         {
             this.dbUtils = dbUtils;
             this.quotSql = quotSql;
@@ -27,7 +27,7 @@ namespace netQL.Lib
             whereValues = new List<SetWhere>();
             bulkInsertData = new List<object>();
         }
-        public SqlModel<T> SetBulk(object data)
+        public SqlModel SetBulk(object data)
         {
             if (data is Array)
             {
@@ -52,7 +52,7 @@ namespace netQL.Lib
             }
             return this;
         }
-        public SqlModel<T> Bulk(object dataBulk)
+        public SqlModel Bulk(object dataBulk)
         {
             if (sqlModelType == SqlModelType.INSERT)
             {
@@ -75,52 +75,52 @@ namespace netQL.Lib
             }
             return this;
         }
-        public SqlModel<T> Insert(string tableName)
+        public SqlModel Insert(string tableName)
         {
             sqlModelType = SqlModelType.INSERT;
             query = "INSERT INTO " + quotSql + tableName + quotSql;
             return this;
         }
-        public SqlModel<T> Update(string tableName)
+        public SqlModel Update(string tableName)
         {
             sqlModelType = SqlModelType.UPDATE;
             query = "UPDATE " + quotSql + tableName + quotSql;
             return this;
         }
-        public SqlModel<T> Delete(string tableName)
+        public SqlModel Delete(string tableName)
         {
             sqlModelType = SqlModelType.DELETE;
             query = "DELETE FROM " + quotSql + tableName + quotSql;
             return this;
         }
-        public SqlModel<T> WhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        public SqlModel WhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery);
         }
-        public SqlModel<T> WhereIn<B>(string columnName, B[] values)
+        public SqlModel WhereIn<B>(string columnName, B[] values)
         {
             return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
         }
-        public SqlModel<T> OrWhereIn(string columnName, Func<DbUtils<T>, DbUtils<T>> subQuery)
+        public SqlModel OrWhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery, "OR");
         }
         private int identity = 0;
-        public DbUtils<T> Clone()
+        public DbUtils Clone()
         {
             identity++;
             var cloned = dbUtils.Clone();
             whereValues.AddRange(cloned.GetWhereValues());
             return cloned;
         }
-        public SqlModel<T> Where(string columnName, string valueOperator, Func<DbUtils<T>, DbUtils<T>> wheres, string oOperator = "AND")
+        public SqlModel Where(string columnName, string valueOperator, Func<DbUtils, DbUtils> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
             var subQuery = wheres(dbClone);
             // set default operator WHERE
             if (whereValues.Count == 0) oOperator = "WHERE";
 
-            whereValues.Add(new SubWhere<T>
+            whereValues.Add(new SubWhere
             {
                 Column = columnName,
                 Operator = oOperator,
@@ -130,61 +130,61 @@ namespace netQL.Lib
             });
             return this;
         }
-        public SqlModel<T> Where<B>(string columnName, B value, Func<string, string> customBind)
+        public SqlModel Where<B>(string columnName, B value, Func<string, string> customBind)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind });
             return this;
         }
-        public SqlModel<T> Where<B>(string columnName, B value)
+        public SqlModel Where<B>(string columnName, B value)
         {
             Where(columnName, value, null);
             return this;
         }
-        public SqlModel<T> Where<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
+        public SqlModel Where<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
             return this;
         }
-        public SqlModel<T> OrWhere<B>(string columnName, B value, Func<string, string> customBind = null)
+        public SqlModel OrWhere<B>(string columnName, B value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
             return this;
         }
-        public SqlModel<T> OrWhere<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
+        public SqlModel OrWhere<B>(string columnName, string oOperator, B value, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
-        public SqlModel<T> OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        public SqlModel OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
             return this;
         }
-        public SqlModel<T> OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public SqlModel OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
             return this;
         }
-        public SqlModel<T> WhereRaw(string columnName, object value, Func<string, string> customBind = null)
+        public SqlModel WhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
             return this;
         }
-        public SqlModel<T> WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
+        public SqlModel WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = columnName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
-        public SqlModel<T> AddValue(string columnName, object value, Func<string, string> customBind = null)
+        public SqlModel AddValue(string columnName, object value, Func<string, string> customBind = null)
         {
             AddValue(columnName, value, GetType(value), customBind);
             return this;
         }
-        public SqlModel<T> AddValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
+        public SqlModel AddValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             if (value == null)
@@ -193,22 +193,22 @@ namespace netQL.Lib
                 columnValues.Add(new Set { Column = columnName, BindName = bindName, Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
-        public SqlModel<T> AddRawValue(string columnName, string value)
+        public SqlModel AddRawValue(string columnName, string value)
         {
             columnValues.Add(new SetRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, IsRaw = true });
             return this;
         }
-        public SqlModel<T> SetValue<B>(string columnName, B value, Func<string, string> customBind = null)
+        public SqlModel SetValue<B>(string columnName, B value, Func<string, string> customBind = null)
         {
             AddValue(columnName, value, GetType(value), customBind);
             return this;
         }
-        public SqlModel<T> SetValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
+        public SqlModel SetValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
             AddValue(columnName, value, dbType, customBind);
             return this;
         }
-        public SqlModel<T> SetRawValue(string columnName, string value)
+        public SqlModel SetRawValue(string columnName, string value)
         {
             if (value == null)
                 SetRawValue(columnName, "NULL");
@@ -240,15 +240,15 @@ namespace netQL.Lib
             Clear();
             return dbUtils.Execute(callback);
         }
-        protected DbUtils<T> assignWhereParameters(List<SetWhere> wheres, ref DbUtils<T> db)
+        protected DbUtils assignWhereParameters(List<SetWhere> wheres, ref DbUtils db)
         {
             foreach (var _value in wheres)
             {
                 if (_value.GetType() == typeof(SetWhereRaw)) continue;
                 else if (_value.GetType() == typeof(SetWhere))
                     db.AddParameter(_value.BindName, _value.Value, _value.VType);
-                else if (_value is SubWhere<T>)
-                    assignWhereParameters(((SubWhere<T>)_value).SubDbUtil.GetWhereValues(), ref db);
+                else if (_value is SubWhere)
+                    assignWhereParameters(((SubWhere)_value).SubDbUtil.GetWhereValues(), ref db);
             }
             return db;
         }
@@ -359,7 +359,7 @@ namespace netQL.Lib
             {
                 if (firstCondition) { _value.Operator = string.Empty; firstCondition = false; }
                 var bindingValue = string.Empty;
-                if ((_value.GetType() == typeof(SetWhereRaw) && (_value as SetWhereRaw).IsRaw) || _value.GetType() == typeof(SubWhere<T>))
+                if (_value.GetType() == typeof(SetWhereRaw) && (_value as SetWhereRaw).IsRaw)
                 {
                     bindingValue = _value.Value.ToString();
                 }
