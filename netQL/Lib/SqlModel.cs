@@ -16,7 +16,10 @@ namespace netQL.Lib
         private DbUtils dbUtils;
         private List<SetWhere> whereValues;
         private List<object> bulkInsertData;
-
+        protected new string FixBindName(string columnName, string additional = "")
+        {
+            return base.FixBindName(columnName, additional + "_" + columnValues.Count);
+        }
         public SqlModel(DbUtils dbUtils, string quotSql, string endQuotSql, string bindSymbol)
         {
             this.dbUtils = dbUtils;

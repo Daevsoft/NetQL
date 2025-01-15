@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Reflection;
+using System.Data.Common;
 
 namespace netQL.Lib
 {
@@ -16,6 +17,10 @@ namespace netQL.Lib
         private DbUtils dbUtils;
         private List<SetWhere> whereValues;
         private List<object> bulkInsertData;
+        protected new string FixBindName(string columnName, string additional = "")
+        {
+            return base.FixBindName(columnName, additional + "_" + columnValues.Count);
+        }
 
         public SqlModel(DbUtils dbUtils, string quotSql, string endQuotSql, string bindSymbol)
         {

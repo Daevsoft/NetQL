@@ -41,8 +41,8 @@ namespace netQL.Lib
         }
         public D GetValue<D>(int ordinal)
         {
-            dynamic? value = reader.GetFieldValue<D>(ordinal);
-            return ConvertValue(value);
+            dynamic? value = GetValue<D>(reader.GetColumnSchema().ElementAt(ordinal).ColumnName);
+            return ConvertValue<D>(value);
         }
         public D GetValue<D>(string columnName)
         {

@@ -34,7 +34,7 @@ namespace netQL.Lib
             return "!!" + sql;
         }
     }
-    public partial class DbUtils : QueryCommon
+    public partial class DbUtils : QueryCommon, IDisposable
     {
         private IDbConnection connection;
         private dynamic command;
@@ -46,6 +46,17 @@ namespace netQL.Lib
         private List<string> groupByColumns;
         private string ConnectionString;
         private Type ConnectionType;
+        ~DbUtils()
+        {
+            Dispose();
+        }
+        public void Dispose()
+        {
+            if (connection != null)
+            {
+                connection.Dispose();
+            }
+        }
         public List<SetWhere> GetWhereValues()
         {
             return whereValues;
@@ -102,7 +113,6 @@ namespace netQL.Lib
         private void Setup(IDbConnection connection, char quotSql, char endQuotSql, char bindSymbol)
         {
             this.connection = connection;
-            command = this.connection.CreateCommand();
             this.quotSql = quotSql.ToString();
             this.endQuotSql = endQuotSql.ToString();
             whereValues = new List<SetWhere>();
@@ -670,13 +680,16 @@ namespace netQL.Lib
 
         private void OpenConnection()
         {
-            CloseConnection();
             if(connection == null)
             {
                 IDbConnection newConnection = (IDbConnection)Activator.CreateInstance(ConnectionType, ConnectionString);
                 connection = newConnection;
             }
-            connection.Open();
+            if(connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+            command = connection.CreateCommand();
         }
         public void Close()
         {
@@ -686,11 +699,11 @@ namespace netQL.Lib
 
         private void CloseConnection()
         {
-            if (connection.State == ConnectionState.Open)
+            if (connection != null && connection.State == ConnectionState.Open)
             {
                 connection.Close();
-                connection.Dispose();
             }
+            //connection = null;
         }
         public void Rollback()
         {

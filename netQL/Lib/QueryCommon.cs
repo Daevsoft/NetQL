@@ -4,11 +4,13 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Data.Common;
+using System.Text.RegularExpressions;
 
 namespace netQL.Lib
 {
     public class QueryCommon
     {
+        Regex rgxAlphanumeric = new Regex("[^a-zA-Z0-9 -]");
         public enum Order { ASC, DESC }
 
         protected string? orderAdditional;
@@ -26,7 +28,9 @@ namespace netQL.Lib
         }
         protected string WrapQuot(string name, bool reverseQuot = false)
         {
-            if (Str.IsRaw(ref name) || string.IsNullOrEmpty(name))
+            if (Str.IsRaw(ref name)
+                || string.IsNullOrEmpty(name)
+                || (name.Contains('(') && name.Contains(')')))
             {
                 return name;
             }
@@ -52,6 +56,7 @@ namespace netQL.Lib
         protected string FixBindName(string columnName, string additional = "")
         {
             string result;
+            columnName = rgxAlphanumeric.Replace(columnName, "_");
             if (Str.IsRaw(ref columnName))
             {
                 result = "P" + Abjads[columnName.Length % (columnName.Length - 1)];
@@ -60,7 +65,7 @@ namespace netQL.Lib
             {
                 result = columnName;
             }
-            return result.Replace('.', '_') + additional;
+            return result + additional;
         }
         protected DbType GetType(Type typeProp)
         {
