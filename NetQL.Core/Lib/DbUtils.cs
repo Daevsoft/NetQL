@@ -46,6 +46,7 @@ namespace netQL.Lib
         private List<string> groupByColumns;
         private string ConnectionString;
         private Type ConnectionType;
+        private bool useTransaction = false;
         ~DbUtils()
         {
             Dispose();
@@ -626,7 +627,11 @@ namespace netQL.Lib
                 }
             }
         }
-
+        public DbUtils Transaction(bool useTransaction = true)
+        {
+            this.useTransaction = useTransaction;
+            return this;
+        }
         public dynamic Execute(Action<dynamic> callback = null)
         {
             StartScope(() =>
@@ -634,13 +639,46 @@ namespace netQL.Lib
                 transaction = connection.BeginTransaction();
                 command.Transaction = transaction;
                 var result = command.ExecuteNonQuery();
-                transaction.Commit();
+
+                if (!useTransaction)
+                {
+                    Commit(); // commit if not in transaction mode
+                }
 
                 if (callback != null)
                     callback(result);
 
             });
             return transaction;
+        }
+        public dynamic Commit()
+        {
+            try
+            {
+                if (transaction == null || transaction.Connection == null || transaction.Connection.State != ConnectionState.Open)
+                {
+                    if (useTransaction)
+                    {
+                        transaction.Commit();
+                    }
+                }
+                return transaction;
+            }
+            catch (Exception ex)
+            {
+                if (useTransaction)
+                {
+                    if (transaction != null && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
+                    {
+                        transaction.Rollback();
+                    }
+                }
+                throw ex;
+            }
+            finally
+            {
+                useTransaction = false;
+            }
         }
 
         private void AddOptionOrder()
