@@ -13,15 +13,7 @@ netQL written with C# language programming.
 
 
 ## Demo
-Create model for result :
-``` C#
-public class Hotel {
-  public int ID { set; get; }
-  public string Name { set; get; }
-  public int Room { set; get; }
-  public string City { set; get; }
-}
-```
+# Connection
 Create instance of connection
 MySql Connection :
 ``` C#
@@ -43,6 +35,33 @@ SqlConnection connection = new SqlConnection(connectionString);
 
 NetQL<SqlConnection> db = new NetQL<SqlConnection>(connection, Provider.SqlServer);
 ```
+
+Create model for result :
+``` C#
+public class Hotel {
+  public int ID { set; get; }
+  public string Name { set; get; }
+  public int Room { set; get; }
+  public string City { set; get; }
+}
+``` 
+Or use `Column` attribute for different name of column in database
+``` C#
+public class Hotel {
+  [Column("room_id")]
+  public int ID { set; get; }
+  
+  [Column("room_name")]
+  public string Name { set; get; }
+
+  [Column("no_room")]
+  public int Room { set; get; }
+  
+  [Column("city_name")]
+  public string City { set; get; }
+}
+```
+
 
 ### Select All
 ``` C#
