@@ -196,5 +196,33 @@ var isLondonExist = db.Select("table_hotel")
                                           .Where("Availability", true))
   .OrWhere("Room", 2) // OrWhere(columnName, anyValue)
 ```
+# Transaction
+``` C#
+// active transaction mode
+_netQl.Transaction();
+
+// prepare data
+var newHotel = new Hotel(){
+  ID = 1,
+  Name = "VIP 10A",
+  Room = 10,
+  City = "Jakarta"
+};
+
+// Do insert data
+_netQl.Insert("hotel").Bulk(newHotel).Execute();
+
+// Do delete data
+_netQl.Delete("hotel").Where("id", 2).Execute();
+
+// Do update data
+_netQl.Update("hotel")
+  .setValue("name", "VIP 11B")
+  .Where("id", 1)
+  .Execute();
+
+// Then commit changes
+_netQl.Commit();
+```
 
 Thank you. Support me if you interest 😉👍
