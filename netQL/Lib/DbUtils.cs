@@ -642,11 +642,8 @@ namespace netQL.Lib
                 transaction = connection.BeginTransaction();
                 command.Transaction = transaction;
                 var result = command.ExecuteNonQuery();
-
-                if (!useTransaction)
-                {
-                    Commit(); // commit if not in transaction mode
-                }
+                
+                Commit();
 
                 if (callback != null)
                     callback(result);
@@ -654,34 +651,29 @@ namespace netQL.Lib
             });
             return transaction;
         }
+        
         public dynamic Commit()
         {
-            try
+            if (transaction != null && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
             {
-                if (transaction == null || transaction.Connection == null || transaction.Connection.State != ConnectionState.Open)
+                try
                 {
-                    if (useTransaction)
+                    if (!useTransaction)
                     {
                         transaction.Commit();
                     }
                 }
-                return transaction;
-            }
-            catch (Exception ex)
-            {
-                if (useTransaction)
+                catch (Exception ex)
                 {
-                    if (transaction != null && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
-                    {
-                        transaction.Rollback();
-                    }
+                    transaction.Rollback();
+                    throw ex;
                 }
-                throw ex;
+                finally
+                {
+                    useTransaction = false;
+                }
             }
-            finally
-            {
-                useTransaction = false;
-            }
+            return transaction;
         }
 
         private void AddOptionOrder()
