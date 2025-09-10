@@ -189,6 +189,15 @@ namespace netQL.Lib
         }
         public SqlModel AddValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
+            if (value is string)
+            {
+                string rawValue = value as string;
+                if (Str.IsRaw(ref rawValue))
+                {
+                    AddRawValue(columnName, value.ToString());
+                }
+                return this;
+            }
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             if (value == null)
                 AddRawValue(columnName, "NULL");
