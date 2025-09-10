@@ -219,11 +219,10 @@ namespace netQL.Lib
                 AddRawValue(columnName, value);
             return this;
         }
-        public dynamic Commit()
+        public dynamic Commit(bool force = true)
         {
-            return dbUtils.Commit();
+            return dbUtils.Commit(force);
         }
-
         public dynamic Execute(Action<dynamic> callback = null)
         {
             if (sqlModelType == SqlModelType.INSERT)

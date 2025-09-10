@@ -593,7 +593,6 @@ namespace netQL.Lib
                     dataReader.Close();
                     dataReader.Dispose();
                 }
-                Close();
             });
             return rows;
         }
@@ -608,25 +607,25 @@ namespace netQL.Lib
 
         private void StartScope(Action transactionCallback)
         {
-            using (TransactionScope scope = new TransactionScope())
+            try
             {
-                try
-                {
-                    transactionCallback();
+                transactionCallback();
 
-                    // complete scope transaction
-                    scope.Complete();
-                }
-                catch (Exception e)
-                {
-                    Rollback();
-                    scope.Complete();
-                    throw e;
-                }
-                finally
-                {
-                    Close();
-                }
+                // complete scope transaction
+                Commit(false); // commit if not in transaction mode
+            }
+            catch (Exception e)
+            {
+                Rollback();
+                throw e;
+            }
+            finally
+            {
+                Clear();
+            }
+            if (!useTransaction)
+            {
+                Close();
             }
         }
         public DbUtils Transaction(bool useTransaction = true)
@@ -639,11 +638,9 @@ namespace netQL.Lib
         {
             StartScope(() =>
             {
-                transaction = connection.BeginTransaction();
+                transaction = useTransaction && transaction != null ? transaction : connection.BeginTransaction();
                 command.Transaction = transaction;
                 var result = command.ExecuteNonQuery();
-                
-                Commit();
 
                 if (callback != null)
                     callback(result);
@@ -651,17 +648,15 @@ namespace netQL.Lib
             });
             return transaction;
         }
-        
-        public dynamic Commit()
+
+        public dynamic Commit(bool force = true)
         {
             if (transaction != null && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
             {
                 try
                 {
-                    if (!useTransaction)
-                    {
+                    if (!useTransaction || force)
                         transaction.Commit();
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -670,12 +665,12 @@ namespace netQL.Lib
                 }
                 finally
                 {
-                    useTransaction = false;
+                    if (!useTransaction || force)
+                        useTransaction = false;
                 }
             }
             return transaction;
         }
-
         private void AddOptionOrder()
         {
             command.CommandText += orderAdditional;
@@ -774,7 +769,6 @@ namespace netQL.Lib
                     }
                     dataReader.Close();
                 }
-                Close();
             });
             return rows > 0;
         }
