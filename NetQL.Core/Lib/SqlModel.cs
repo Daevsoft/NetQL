@@ -197,8 +197,8 @@ namespace netQL.Lib
                 if (Str.IsRaw(ref rawValue))
                 {
                     AddRawValue(columnName, rawValue);
+                    return this;
                 }
-                return this;
             }
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
             if (value == null)

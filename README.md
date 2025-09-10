@@ -199,7 +199,7 @@ var isLondonExist = db.Select("table_hotel")
 # Transaction
 ``` C#
 // active transaction mode
-_netQl.Transaction();
+_netQl.Transaction(); // Is used if you want to use Transaction Scope
 
 // prepare data
 var newHotel = new Hotel(){
@@ -212,6 +212,15 @@ var newHotel = new Hotel(){
 // Do insert data
 _netQl.Insert("hotel").Bulk(newHotel).Execute();
 
+// Do insert with anonymous object
+_netQl.Insert("hotel").SetBulk(new {
+  ID = 1,
+  Name = "VIP 10A",
+  Room = 10,
+  City = "Jakarta"
+}).Execute();
+
+
 // Do delete data
 _netQl.Delete("hotel").Where("id", 2).Execute();
 
@@ -222,7 +231,7 @@ _netQl.Update("hotel")
   .Execute();
 
 // Then commit changes
-_netQl.Commit();
+_netQl.Commit(); // Is used when you use TransactionScope
 ```
 
 Thank you. Support me if you interest 😉👍
