@@ -194,7 +194,7 @@ namespace netQL.Lib
                 string rawValue = value as string;
                 if (Str.IsRaw(ref rawValue))
                 {
-                    AddRawValue(columnName, value.ToString());
+                    AddRawValue(columnName, rawValue);
                 }
                 return this;
             }
