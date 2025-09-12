@@ -656,7 +656,9 @@ namespace netQL.Lib
                 try
                 {
                     if (!useTransaction || force)
+                    {
                         transaction.Commit();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -665,8 +667,12 @@ namespace netQL.Lib
                 }
                 finally
                 {
-                    if (!useTransaction || force)
+                    if (!useTransaction || force){
                         useTransaction = false;
+
+                        transaction.Dispose();
+                        transaction = null;
+                    }
                 }
             }
             return transaction;
