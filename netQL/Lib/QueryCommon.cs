@@ -136,7 +136,7 @@ namespace netQL.Lib
         {
             public bool IsRaw { set; get; }
         }
-        protected class SubWhere : SetWhere
+        protected class SubWhere : SetWhereRaw
         {
             public DbUtils SubDbUtil { set; get; }
         }

@@ -28,6 +28,7 @@ namespace netQL.Lib
         }
         protected string WrapQuot(string name, bool reverseQuot = false)
         {
+            if (string.IsNullOrEmpty(name)) return string.Empty;
             if (Str.IsRaw(ref name) 
                 || string.IsNullOrEmpty(name)
                 || (name.Contains('(') && name.Contains(')')))
@@ -136,7 +137,7 @@ namespace netQL.Lib
         {
             public bool IsRaw { set; get; }
         }
-        protected class SubWhere : SetWhere
+        protected class SubWhere : SetWhereRaw
         {
             public DbUtils SubDbUtil { set; get; }
         }
