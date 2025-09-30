@@ -288,10 +288,27 @@ namespace netQL.Lib
             });
             return this;
         }
+        private string BindColumnName(string columnName)
+        {
+            return columnName != null ? FixBindName(columnName, "_" + identity + "_" + whereValues.Count) : null;
+        }
         public DbUtils Where(string columnName, object value, Func<string, string> customBind)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind });
+            return this;
+        }
+        public DbUtils Where(string columnName, object value, DbType type)
+        {
+            string bindName = BindColumnName(columnName);
+            whereValues.Add(new SetWhere
+            {
+                VType = type,
+                BindName = bindName,
+                Column = columnName,
+                Operator = "AND",
+                Value = value,
+            });
             return this;
         }
         public DbUtils Where(string columnName, object value)
@@ -301,19 +318,32 @@ namespace netQL.Lib
         }
         public DbUtils Where(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, ValueOperator = oOperator });
+            return this;
+        }
+        public DbUtils OrWhere(string columnName, object value, DbType type)
+        {
+            string bindName = BindColumnName(columnName);
+            whereValues.Add(new SetWhere
+            {
+                VType = type,
+                BindName = bindName,
+                Column = columnName,
+                Operator = "OR",
+                Value = value,
+            });
             return this;
         }
         public DbUtils OrWhere(string columnName, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR" });
             return this;
         }
         public DbUtils OrWhere(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhere { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator });
             return this;
         }
@@ -329,25 +359,25 @@ namespace netQL.Lib
         }
         public DbUtils OrWhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", IsRaw = true });
             return this;
         }
         public DbUtils OrWhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, Operator = "OR", ValueOperator = oOperator, IsRaw = true });
             return this;
         }
         public DbUtils WhereRaw(string columnName, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true });
             return this;
         }
         public DbUtils WhereRaw(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {
-            string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
+            string bindName = BindColumnName(columnName);
             whereValues.Add(new SetWhereRaw { Column = columnName, BindName = bindName, Value = value, VType = GetType(value), CustomBind = customBind, IsRaw = true, ValueOperator = oOperator });
             return this;
         }
@@ -455,7 +485,7 @@ namespace netQL.Lib
         {
             return NewJoin(subQuery, alias, onColumn1, onColumn2, JoinTypes.RIGHT);
         }
-        private string GenerateWhere(bool ignoreKeyword = false)
+        public string GenerateWhere(bool ignoreKeyword = false)
         {
             if (whereValues.Count == 0) return string.Empty;
 
@@ -676,8 +706,7 @@ namespace netQL.Lib
             int rows = 0;
             StartScope(() =>
             {
-                var dataReader = command.ExecuteReader();
-                if (dataReader.HasRows)
+                using (var dataReader = command.ExecuteReader())
                 {
                     while (dataReader.Read())
                     {
@@ -685,9 +714,8 @@ namespace netQL.Lib
                         callback(reader);
                         rows++;
                     }
-                    dataReader.Close();
-                    dataReader.Dispose();
                 }
+                command.Dispose();
             });
             return rows;
         }
@@ -728,7 +756,12 @@ namespace netQL.Lib
             this.useTransaction = useTransaction;
             return this;
         }
-
+        public DbUtils Transaction(IDbTransaction dbTransaction)
+        {
+            this.useTransaction = true;
+            transaction = dbTransaction;
+            return this;
+        }
         public dynamic Execute(Action<dynamic> callback = null)
         {
             StartScope(() =>
@@ -740,6 +773,7 @@ namespace netQL.Lib
                 if (callback != null)
                     callback(result);
 
+                command.Dispose();
             });
             return transaction;
         }
@@ -870,14 +904,16 @@ namespace netQL.Lib
             {
                 AddOptionWhere();
                 command.CommandText = "select 1 from (" + command.CommandText + ") anu group by 1";
-                var dataReader = command.ExecuteReader();
-                if (dataReader.HasRows)
+                using (var dataReader = command.ExecuteReader())
                 {
-                    while (dataReader.Read())
+                    if (dataReader.HasRows)
                     {
-                        rows++;
+                        while (dataReader.Read())
+                        {
+                            rows++;
+                        }
+                        dataReader.Close();
                     }
-                    dataReader.Close();
                 }
             });
             return rows > 0;

@@ -116,6 +116,101 @@ namespace netQL.Lib
             whereValues.AddRange(cloned.GetWhereValues());
             return cloned;
         }
+        public SqlModel OrWhere(object wheres)
+        {
+            if (wheres is Array)
+            {
+                throw new Exception("Bulk Update it's not support for array data");
+            }
+            var properties = wheres.GetType().GetProperties().AsEnumerable();
+            int propertiesLength = properties.Count();
+
+            for (int i = 0; i < propertiesLength; i++)
+            {
+                var prop = properties.ElementAt(i);
+
+                var valueProp = prop.GetValue(wheres);
+                var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
+                if (valueProp == null)
+                {
+                    OrNull(columnName);
+                    continue;
+                }
+                else
+                {
+                    OrWhere(columnName, valueProp);
+                }
+            }
+            return this;
+        }
+        public SqlModel Wrap(Func<DbUtils, DbUtils> wheres)
+        {
+            var dbClone = Clone();
+            var subQuery = wheres(dbClone);
+
+            whereValues.Add(new SubWhere
+            {
+                Column = null,
+                Operator = "AND",
+                ValueOperator = string.Empty,
+                Value = "(" + subQuery.GenerateWhere(true) + ")",
+                SubDbUtil = subQuery,
+                IsRaw = true,
+            });
+            return this;
+        }
+        public SqlModel OrWrap(Func<DbUtils, DbUtils> wheres)
+        {
+            var dbClone = Clone();
+            var subQuery = wheres(dbClone);
+
+            whereValues.Add(new SubWhere
+            {
+                Column = null,
+                Operator = "OR",
+                ValueOperator = string.Empty,
+                Value = "(" + subQuery.GenerateWhere(true) + ")",
+                SubDbUtil = subQuery,
+                IsRaw = true,
+            });
+            return this;
+        }
+        public SqlModel Where(object wheres)
+        {
+            if (wheres is Array)
+            {
+                throw new Exception("Bulk Update it's not support for array data");
+            }
+            var properties = wheres.GetType().GetProperties().AsEnumerable();
+            int propertiesLength = properties.Count();
+
+            for (int i = 0; i < propertiesLength; i++)
+            {
+                var prop = properties.ElementAt(i);
+                var valueProp = prop.GetValue(wheres);
+                var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
+                var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
+                if (valueProp == null)
+                {
+                    AndNull(columnName);
+                    continue;
+                }
+                else
+                {
+                    Where(columnName, valueProp);
+                }
+            }
+            return this;
+        }
+        public SqlModel AndNull(string columnName)
+        {
+            return WhereRaw(columnName, " IS ", "NULL");
+        }
+        public SqlModel OrNull(string columnName)
+        {
+            return OrWhereRaw(columnName, " IS ", "NULL");
+        }
         public SqlModel Where(string columnName, string valueOperator, Func<DbUtils, DbUtils> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
