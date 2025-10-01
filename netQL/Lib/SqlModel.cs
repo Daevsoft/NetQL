@@ -100,6 +100,14 @@ namespace netQL.Lib
         {
             return Where(columnName, "IN", subQuery);
         }
+        public SqlModel WhereNotIn<B>(string columnName, B[] values)
+        {
+            return WhereRaw(columnName, "NOT IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
+        }
+        public SqlModel OrWhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery, "OR");
+        }
         public SqlModel WhereIn<B>(string columnName, B[] values)
         {
             return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");

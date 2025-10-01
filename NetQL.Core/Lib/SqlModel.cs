@@ -98,6 +98,18 @@ namespace netQL.Lib
             query = "DELETE FROM " + quotSql + tableName + quotSql;
             return this;
         }
+        public SqlModel WhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery);
+        }
+        public SqlModel WhereNotIn<B>(string columnName, B[] values)
+        {
+            return WhereRaw(columnName, "NOT IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
+        }
+        public SqlModel OrWhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery, "OR");
+        }
         public SqlModel WhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery);

@@ -162,6 +162,18 @@ namespace netQL.Lib
             var xColumns = columns.Split(',').Select(x => x.Trim()).ToArray();
             return Select(xColumns, table);
         }
+        public DbUtils WhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery);
+        }
+        public DbUtils WhereNotIn<B>(string columnName, B[] values)
+        {
+            return WhereRaw(columnName, "NOT IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
+        }
+        public DbUtils OrWhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery, "OR");
+        }
         public DbUtils WhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery);
