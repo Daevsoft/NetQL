@@ -865,7 +865,6 @@ namespace netQL.Lib
         {
             command.CommandText += GenerateGroupBy();
         }
-
         private void OpenConnection()
         {
             if(connection == null)
@@ -873,7 +872,10 @@ namespace netQL.Lib
                 IDbConnection newConnection = (IDbConnection)Activator.CreateInstance(ConnectionType, ConnectionString);
                 connection = newConnection;
             }
-            if(connection.State != ConnectionState.Open)
+            if(useTransaction && transaction.Connection != null && transaction.Connection.State  == ConnectionState.Open)
+            {
+                connection = transaction.Connection;
+            } else if (connection.State != ConnectionState.Open)
             {
                 connection.Open();
             }
