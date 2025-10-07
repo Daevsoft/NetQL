@@ -421,23 +421,30 @@ namespace netQL.Lib
             // check if tableName is sub query or not
             if (tableName[0] != '(')
                 tableName = WrapQuot(tableName);
-
-            // new join set
-            var joinObject = new Join { Table = tableName, OnColumn = WrapQuot(onColumn1), OnValue = WrapQuot(onColumn2), JoinType = type };
-
+            Join joinObject;
+            if (onColumn2 == null)
+            {
+                // new join raw
+                joinObject = new Join { Table = tableName, OnRaw = onColumn1, JoinType = type };
+            }
+            else
+            {
+                // new join set
+                joinObject = new Join { Table = tableName, OnColumn = WrapQuot(onColumn1), OnValue = WrapQuot(onColumn2), JoinType = type };
+            }
             // collect into list
             joinValues.Add(joinObject);
             return this;
         }
-        public DbUtils Join(string tableName, string onColumn1, string onColumn2)
+        public DbUtils Join(string tableName, string onColumn1, string onColumn2 = null)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2);
         }
-        public DbUtils LeftJoin(string tableName, string onColumn1, string onColumn2)
+        public DbUtils LeftJoin(string tableName, string onColumn1, string onColumn2 = null)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2, JoinTypes.LEFT);
         }
-        public DbUtils RightJoin(string tableName, string onColumn1, string onColumn2)
+        public DbUtils RightJoin(string tableName, string onColumn1, string onColumn2 = null)
         {
             return AddJoinSet(tableName, onColumn1, onColumn2, JoinTypes.RIGHT);
         }
@@ -526,8 +533,9 @@ namespace netQL.Lib
             foreach (Join _value in joinValues)
             {
                 var joinType = _value.JoinType.ToString();
+                var onCondition = !string.IsNullOrEmpty(_value.OnRaw) ? _value.OnRaw : (_value.OnColumn + "=" + _value.OnValue);
                 joinQuery += " " + joinType +
-                    " JOIN " + _value.Table + " ON " + _value.OnColumn + "=" + _value.OnValue;
+                    " JOIN " + _value.Table + " ON " + onCondition;
             }
             return joinQuery;
         }
@@ -778,7 +786,6 @@ namespace netQL.Lib
         {
             StartScope(() =>
             {
-                transaction = useTransaction && transaction != null ? transaction : connection.BeginTransaction();
                 command.Transaction = transaction;
                 var result = command.ExecuteNonQuery();
 
@@ -863,19 +870,20 @@ namespace netQL.Lib
         }
         private void OpenConnection()
         {
-            if (connection == null)
+            if (connection == null && transaction == null)
             {
                 IDbConnection newConnection = (IDbConnection)Activator.CreateInstance(ConnectionType, ConnectionString);
                 connection = newConnection;
             }
-            if (useTransaction && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
+            else if (transaction != null && transaction.Connection != null && transaction.Connection.State == ConnectionState.Open)
             {
                 connection = transaction.Connection;
             }
-            else if (connection.State != ConnectionState.Open)
+            if (connection.State != ConnectionState.Open)
             {
                 connection.Open();
             }
+            transaction = useTransaction && transaction != null ? transaction : connection.BeginTransaction();
             command = connection.CreateCommand();
         }
         public void Close()

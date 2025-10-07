@@ -116,6 +116,7 @@ namespace netQL.Lib
             public string Table { set; get; }
             public string OnColumn { set; get; }
             public string OnValue { set; get; }
+            public string OnRaw { set; get; }
         }
 
         public class Set
