@@ -218,6 +218,28 @@ namespace netQL.Lib
             }
             return this;
         }
+        public SqlModel Where(string columnName, object value)
+        {
+            if (value == null)
+            {
+                return AndNull(columnName);
+            }
+            else
+            {
+                return Where(columnName, value, null);
+            }
+        }
+        public SqlModel OrWhere(string columnName, object value)
+        {
+            if (value == null)
+            {
+                return OrNull(columnName);
+            }
+            else
+            {
+                return OrWhere(columnName, value, null);
+            }
+        }
         public SqlModel AndNull(string columnName)
         {
             return WhereRaw(columnName, " IS ", "NULL");

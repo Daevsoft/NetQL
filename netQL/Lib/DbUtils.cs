@@ -325,8 +325,25 @@ namespace netQL.Lib
         }
         public DbUtils Where(string columnName, object value)
         {
-            Where(columnName, value, null);
-            return this;
+            if(value == null)
+            {
+                return AndNull(columnName);
+            }
+            else
+            {
+               return Where(columnName, value, null);
+            }
+        }
+        public DbUtils OrWhere(string columnName, object value)
+        {
+            if (value == null)
+            {
+                return OrNull(columnName);
+            }
+            else
+            {
+                return OrWhere(columnName, value, null);
+            }
         }
         public DbUtils Where(string columnName, string oOperator, object value, Func<string, string> customBind = null)
         {

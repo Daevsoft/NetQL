@@ -219,6 +219,29 @@ namespace netQL.Lib
         {
             return OrWhereRaw(columnName, " IS ", "NULL");
         }
+
+        public SqlModel Where(string columnName, object value)
+        {
+            if (value == null)
+            {
+                return AndNull(columnName);
+            }
+            else
+            {
+                return Where(columnName, value, null);
+            }
+        }
+        public SqlModel OrWhere(string columnName, object value)
+        {
+            if (value == null)
+            {
+                return OrNull(columnName);
+            }
+            else
+            {
+                return OrWhere(columnName, value, null);
+            }
+        }
         public SqlModel Where(string columnName, string valueOperator, Func<DbUtils, DbUtils> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
