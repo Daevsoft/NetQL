@@ -5,6 +5,7 @@ using System.Linq;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Reflection;
 using System.Data.Common;
+using System.Collections;
 
 namespace netQL.Lib
 {
@@ -32,7 +33,7 @@ namespace netQL.Lib
             whereValues = new List<SetWhere>();
             bulkInsertData = new List<object>();
         }
-        public SqlModel SetBulk(object data)
+        private SqlModel SetBulk(object data)
         {
             if (data is Array)
             {
@@ -61,9 +62,9 @@ namespace netQL.Lib
         {
             if (sqlModelType == SqlModelType.INSERT)
             {
-                if (dataBulk is Array)
+                if (dataBulk is IEnumerable)
                 {
-                    var dataList = (Array)dataBulk;
+                    IEnumerable dataList = dataBulk as IEnumerable;
                     foreach (var data in dataList)
                     {
                         bulkInsertData.Add(data);
@@ -453,8 +454,13 @@ namespace netQL.Lib
                     if (columnName.First() == '_') continue;
 
                     AddValue(columnName, valueProp, GetType(prop.PropertyType));
+                    string rawValue = valueProp as string;
 
-                    if (valueProp != null)
+                    if (valueProp is string && Str.IsRaw(ref rawValue))
+                    {
+                        colValues += "," + rawValue;
+                    }
+                    else if (valueProp != null)
                         colValues += "," + bindSymbol + columnValues.Last().BindName;
                     else
                         colValues += ",NULL";

@@ -30,7 +30,7 @@ namespace netQL.Lib
             whereValues = new List<SetWhere>();
             bulkInsertData = new List<object>();
         }
-        public SqlModel SetBulk(object data)
+        private SqlModel SetBulk(object data)
         {
             if (data is Array)
             {
@@ -447,8 +447,13 @@ namespace netQL.Lib
                     if (columnName.First() == '_') continue;
 
                     AddValue(columnName, valueProp, GetType(prop.PropertyType));
+                    string rawValue = valueProp as string;
 
-                    if (valueProp != null)
+                    if (valueProp is string && Str.IsRaw(ref rawValue))
+                    {
+                        colValues += "," + rawValue;
+                    }
+                    else if (valueProp != null)
                         colValues += "," + bindSymbol + columnValues.Last().BindName;
                     else
                         colValues += ",NULL";
