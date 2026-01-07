@@ -18,7 +18,14 @@ namespace netQL.Lib
         {
             try
             {
-                return reader.GetOrdinal(columnName) != -1;
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
             catch (Exception)
             {
