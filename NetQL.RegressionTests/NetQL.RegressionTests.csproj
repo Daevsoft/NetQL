@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <DefineConstants Condition="'$(NetQLVariant)' == 'Core'">$(DefineConstants);CORE_VARIANT</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.0.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.22" />
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Compile Include="../TestDemo/QueryBuilder/SessionRegressionTests.cs" Link="SessionRegressionTests.cs" />
+    <Compile Include="../TestDemo/QueryBuilder/WriteRegressionTests.cs" Link="WriteRegressionTests.cs" />
+    <Compile Include="../TestDemo/Utils/ReaderRegressionTests.cs" Link="ReaderRegressionTests.cs" />
+    <ProjectReference Include="../netQL/NetQL.csproj" Condition="'$(NetQLVariant)' != 'Core'" />
+    <ProjectReference Include="../NetQL.Core/NetQL.Core.csproj" Condition="'$(NetQLVariant)' == 'Core'" />
+  </ItemGroup>
+</Project>

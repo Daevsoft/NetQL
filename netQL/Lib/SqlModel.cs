@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Daevsoft.Lib
 {
@@ -15,10 +18,14 @@ namespace Daevsoft.Lib
         private List<Set> columnValues;
         private DbUtils dbUtils;
         private List<SetWhere> whereValues;
-        private List<object> bulkInsertData;
+        private List<List<Set>> bulkInsertData;
+        private readonly List<Set> additionalParameters = new List<Set>();
+        private int executionStarted;
+        private int bulkChunkSize;
+        private bool bulkCommitEachChunk;
         protected new string FixBindName(string columnName, string additional = "")
         {
-            return base.FixBindName(columnName, additional + "_" + columnValues.Count);
+            return "write_" + base.FixBindName(columnName, additional + "_" + columnValues.Count);
         }
         public SqlModel(DbUtils dbUtils, string quotSql, string endQuotSql, string bindSymbol)
         {
@@ -28,104 +35,194 @@ namespace Daevsoft.Lib
             this.bindSymbol = bindSymbol;
             columnValues = new List<Set>();
             whereValues = new List<SetWhere>();
-            bulkInsertData = new List<object>();
+            bulkInsertData = new List<List<Set>>();
         }
+        private List<Set> ReadRow(object data)
+        {
+            if (data == null || data is IEnumerable)
+                throw new ArgumentException("A row must be a non-null object, not a collection or string.", nameof(data));
+
+            var result = new List<Set>();
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var prop in data.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var columnName = prop.GetCustomAttribute<ColumnAttribute>()?.Name ?? prop.Name;
+                if (prop.GetCustomAttribute<NotMappedAttribute>() != null ||
+                    prop.Name.StartsWith("_", StringComparison.Ordinal) || columnName.StartsWith("_", StringComparison.Ordinal))
+                    continue;
+                if (prop.GetIndexParameters().Length != 0 || prop.GetGetMethod() == null)
+                    throw new ArgumentException("Rows must contain readable, non-indexed properties.", nameof(data));
+                if (string.IsNullOrWhiteSpace(columnName) || !columns.Add(columnName))
+                    throw new ArgumentException("Row column names must be non-empty and unique.", nameof(data));
+                result.Add(new Set { Column = columnName, Value = prop.GetValue(data), VType = GetType(prop.PropertyType) });
+            }
+            if (result.Count == 0)
+                throw new ArgumentException("A row must contain at least one mapped column.", nameof(data));
+            return result;
+        }
+        internal SqlModel BindRow(object data) => SetBulk(data);
+
         private SqlModel SetBulk(object data)
         {
-            if (data is Array)
-            {
-                throw new Exception("Bulk Update it's not support for array data");
-            }
-            var properties = data.GetType().GetProperties().AsEnumerable();
-            int propertiesLength = properties.Count();
-
-            for (int i = 0; i < propertiesLength; i++)
-            {
-                var prop = properties.ElementAt(i);
-
-                // field with underscore will skipped
-                if (prop.Name.First() == '_') continue;
-                else
-                {
-                    var valueProp = prop.GetValue(data);
-                    var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
-                    var columnName = columnAttr != null ? columnAttr.Name : prop.Name;
-                    SetValue(columnName, valueProp, GetType(prop.PropertyType));
-                }
-            }
+            var values = ReadRow(data);
+            foreach (var value in values)
+                SetValue(value.Column, value.Value, value.VType);
             return this;
         }
         public SqlModel Bulk(object dataBulk)
         {
-            if (sqlModelType == SqlModelType.INSERT)
+            return Bulk(dataBulk, 0);
+        }
+
+        public SqlModel Bulk(object dataBulk, int chunkSize, bool commitEachChunk = false)
+        {
+            if (chunkSize < 0) throw new ArgumentOutOfRangeException(nameof(chunkSize));
+            if (commitEachChunk && chunkSize <= 0)
+                throw new ArgumentException("Chunked bulk writes require a positive chunk size.", nameof(chunkSize));
+            if (sqlModelType == SqlModelType.UPDATE)
             {
-                if (dataBulk is Array)
-                {
-                    var dataList = (Array)dataBulk;
-                    foreach (var data in dataList)
-                    {
-                        bulkInsertData.Add(data);
-                    }
-                }
-                else
-                {
-                    bulkInsertData.Add(dataBulk);
-                }
-            }
-            else if (sqlModelType == SqlModelType.UPDATE)
-            {
+                if (chunkSize > 0 || commitEachChunk)
+                    throw new InvalidOperationException("Chunked bulk writes are only supported for inserts.");
                 return SetBulk(dataBulk);
             }
+            if (sqlModelType != SqlModelType.INSERT)
+                throw new InvalidOperationException("Bulk data is only supported for inserts and updates.");
+            if (columnValues.Count != 0)
+                throw new InvalidOperationException("Bulk rows cannot be combined with explicit column values.");
+
+            // Validate and snapshot the entire batch before changing the builder or touching a command.
+            var rows = new List<List<Set>>();
+            if (dataBulk is IEnumerable items && !(dataBulk is string))
+            {
+                foreach (var data in items)
+                    rows.Add(ReadRow(data));
+            }
+            else
+                rows.Add(ReadRow(dataBulk));
+            if (rows.Count == 0)
+                throw new ArgumentException("Bulk data must contain at least one row.", nameof(dataBulk));
+
+            var first = bulkInsertData.Count == 0 ? rows[0] : bulkInsertData[0];
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                if (row.Count != first.Count || first.Any(column =>
+                    !row.Any(value => string.Equals(value.Column, column.Column, StringComparison.OrdinalIgnoreCase))))
+                    throw new ArgumentException("All bulk rows must have the same mapped columns.", nameof(dataBulk));
+
+                rows[rowIndex] = first.Select(column => row.Single(value =>
+                    string.Equals(value.Column, column.Column, StringComparison.OrdinalIgnoreCase))).ToList();
+                for (int columnIndex = 0; columnIndex < first.Count; columnIndex++)
+                    rows[rowIndex][columnIndex].BindName = "write_bulk_" + (bulkInsertData.Count + rowIndex) + "_" + columnIndex;
+            }
+            bulkInsertData.AddRange(rows);
+            bulkChunkSize = chunkSize;
+            bulkCommitEachChunk = commitEachChunk;
             return this;
+        }
+        internal SqlModel BulkRows(object dataBulk, int chunkSize, bool commitEachChunk = false)
+        {
+            return Bulk(dataBulk, chunkSize, commitEachChunk);
         }
         public SqlModel Insert(string tableName)
         {
             sqlModelType = SqlModelType.INSERT;
-            query = "INSERT INTO " + quotSql + tableName + quotSql;
+            query = "INSERT INTO " + WrapQuot(tableName);
             return this;
         }
         public SqlModel Update(string tableName)
         {
             sqlModelType = SqlModelType.UPDATE;
-            query = "UPDATE " + quotSql + tableName + quotSql;
+            query = "UPDATE " + WrapQuot(tableName);
             return this;
         }
         public SqlModel Delete(string tableName)
         {
             sqlModelType = SqlModelType.DELETE;
-            query = "DELETE FROM " + quotSql + tableName + quotSql;
+            query = "DELETE FROM " + WrapQuot(tableName);
             return this;
         }
         public SqlModel WhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery);
         }
+        public SqlModel WhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
+        {
+            return Where(columnName, "NOT IN", subQuery);
+        }
         public SqlModel WhereNotIn<B>(string columnName, B[] values)
         {
-            return WhereRaw(columnName, "NOT IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
+            return InList(columnName, values, "NOT IN", "AND");
         }
         public SqlModel OrWhereNotIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "NOT IN", subQuery, "OR");
         }
+        public SqlModel OrWhereNotIn<B>(string columnName, B[] values)
+        {
+            return InList(columnName, values, "NOT IN", "OR");
+        }
         public SqlModel WhereIn<B>(string columnName, B[] values)
         {
-            return WhereRaw(columnName, "IN", $"({string.Join(",", values.Select(x => "'" + x + "'"))})");
+            return InList(columnName, values, "IN", "AND");
         }
         public SqlModel OrWhereIn(string columnName, Func<DbUtils, DbUtils> subQuery)
         {
             return Where(columnName, "IN", subQuery, "OR");
         }
+        public SqlModel OrWhereIn<B>(string columnName, B[] values)
+        {
+            return InList(columnName, values, "IN", "OR");
+        }
+        private SqlModel InList<B>(string columnName, B[] values, string valueOperator, string operatorKeyword)
+        {
+            if (values == null || values.Length == 0)
+            {
+                whereValues.Add(new SetWhereRaw
+                {
+                    Operator = operatorKeyword,
+                    ValueOperator = string.Empty,
+                    Value = valueOperator == "IN" ? "1 = 0" : "1 = 1",
+                    IsRaw = true
+                });
+                return this;
+            }
+
+            var items = new List<Set>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                var value = values[i];
+                items.Add(new Set
+                {
+                    Column = columnName,
+                    BindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count + "_" + i),
+                    Value = value,
+                    VType = GetType(value),
+                });
+            }
+            whereValues.Add(new SetWhereIn
+            {
+                Column = columnName,
+                Operator = operatorKeyword,
+                ValueOperator = valueOperator,
+                Items = items,
+            });
+            return this;
+        }
+        public SqlModel WhereRaw(string whereQuery)
+        {
+            whereValues.Add(new SetWhereRaw { Column = null, BindName = null, Value = whereQuery, ValueOperator = string.Empty, IsRaw = true });
+            return this;
+        }
         private int identity = 0;
         public DbUtils Clone()
         {
             identity++;
-            var cloned = dbUtils.Clone();
-            whereValues.AddRange(cloned.GetWhereValues());
-            return cloned;
+            return dbUtils.Clone();
         }
         public SqlModel OrWhere(object wheres)
         {
+            if (wheres == null) throw new ArgumentNullException(nameof(wheres));
             if (wheres is Array)
             {
                 throw new Exception("Bulk Update it's not support for array data");
@@ -155,7 +252,7 @@ namespace Daevsoft.Lib
         public SqlModel Wrap(Func<DbUtils, DbUtils> wheres)
         {
             var dbClone = Clone();
-            var subQuery = wheres(dbClone);
+            var subQuery = DbUtils.ValidateSubquery(dbClone, wheres(dbClone));
 
             whereValues.Add(new SubWhere
             {
@@ -171,7 +268,7 @@ namespace Daevsoft.Lib
         public SqlModel OrWrap(Func<DbUtils, DbUtils> wheres)
         {
             var dbClone = Clone();
-            var subQuery = wheres(dbClone);
+            var subQuery = DbUtils.ValidateSubquery(dbClone, wheres(dbClone));
 
             whereValues.Add(new SubWhere
             {
@@ -186,6 +283,7 @@ namespace Daevsoft.Lib
         }
         public SqlModel Where(object wheres)
         {
+            if (wheres == null) throw new ArgumentNullException(nameof(wheres));
             if (wheres is Array)
             {
                 throw new Exception("Bulk Update it's not support for array data");
@@ -245,7 +343,7 @@ namespace Daevsoft.Lib
         public SqlModel Where(string columnName, string valueOperator, Func<DbUtils, DbUtils> wheres, string oOperator = "AND")
         {
             var dbClone = Clone();
-            var subQuery = wheres(dbClone);
+            var subQuery = DbUtils.ValidateSubquery(dbClone, wheres(dbClone));
             // set default operator WHERE
             if (whereValues.Count == 0) oOperator = "WHERE";
 
@@ -315,25 +413,17 @@ namespace Daevsoft.Lib
         }
         public SqlModel AddValue(string columnName, object value, DbType dbType, Func<string, string> customBind = null)
         {
-            if (value is string)
-            {
-                string rawValue = value as string;
-                if (Str.IsRaw(ref rawValue))
-                {
-                    AddRawValue(columnName, rawValue);
-                    return this;
-                }
-            }
+            if (bulkInsertData.Count != 0)
+                throw new InvalidOperationException("Bulk rows cannot be combined with explicit column values.");
             string bindName = FixBindName(columnName, "_" + identity + "_" + whereValues.Count);
-            if (value == null)
-                AddRawValue(columnName, "NULL");
-            else
-                columnValues.Add(new Set { Column = columnName, BindName = bindName, Value = value, VType = dbType, CustomBind = customBind });
+            columnValues.Add(new Set { Column = columnName, BindName = bindName, Value = value, VType = dbType, CustomBind = customBind });
             return this;
         }
         public SqlModel AddRawValue(string columnName, string value)
         {
-            columnValues.Add(new SetRaw { Column = columnName, BindName = columnName.Replace('.', '_'), Value = value, IsRaw = true });
+            if (bulkInsertData.Count != 0)
+                throw new InvalidOperationException("Bulk rows cannot be combined with explicit column values.");
+            columnValues.Add(new SetRaw { Column = columnName, Value = value ?? "NULL", IsRaw = true });
             return this;
         }
         public SqlModel SetValue<B>(string columnName, B value, Func<string, string> customBind = null)
@@ -360,173 +450,278 @@ namespace Daevsoft.Lib
         }
         public SqlModel AddParameter(string name, object value, DbType type = DbType.String)
         {
-            dbUtils.AddParameter(name, value, type);
+            // Query resets DbUtils parameters, so keep these on the write builder until preparation.
+            additionalParameters.Add(new Set { BindName = name, Value = value, VType = type });
             return this;
         }
         public dynamic Execute(Action<dynamic> callback = null)
         {
-            if (sqlModelType == SqlModelType.INSERT)
-                SetupInsertQuery();
-            else if (sqlModelType == SqlModelType.UPDATE)
-                SetupUpdateQuery();
-            else if (sqlModelType == SqlModelType.DELETE)
-                SetupDeleteQuery();
-            else return null;
-
-            dbUtils.Query(query);
-
-            foreach (Set _value in columnValues)
+            if (bulkChunkSize > 0)
             {
-                if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
-                    continue;
-
-                dbUtils.AddParameter(_value.BindName, _value.Value, _value.VType);
+                callback?.Invoke(ExecuteChunks());
+                return null;
             }
-            assignWhereParameters(whereValues, ref dbUtils);
-            Clear();
+            PrepareExecution();
             return dbUtils.Execute(callback);
+        }
+        public int ExecuteNonQuery()
+        {
+            return bulkChunkSize > 0 ? ExecuteChunks() : PrepareAndExecute();
+        }
+        public async Task<int> ExecuteAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (bulkChunkSize > 0) return await ExecuteChunksAsync(cancellationToken).ConfigureAwait(false);
+            PrepareExecution();
+            return await dbUtils.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+        }
+        private int PrepareAndExecute()
+        {
+            PrepareExecution();
+            return dbUtils.ExecuteNonQuery();
+        }
+        private void BeginChunkedExecution()
+        {
+            if (bulkCommitEachChunk && dbUtils.HasTransaction)
+                throw new InvalidOperationException("commitEachChunk cannot be combined with a configured transaction. Complete or remove the transaction first.");
+            if (Volatile.Read(ref executionStarted) != 0)
+                throw new InvalidOperationException("A write builder can only be executed once. Create a new builder for another write.");
+            if (Interlocked.Exchange(ref executionStarted, 1) != 0)
+                throw new InvalidOperationException("A write builder can only be executed once. Create a new builder for another write.");
+        }
+        private int ExecuteChunks()
+        {
+            BeginChunkedExecution();
+            bool manageTransaction = !bulkCommitEachChunk && !dbUtils.HasTransaction;
+            if (manageTransaction) dbUtils.Transaction();
+            int total = 0;
+            try
+            {
+                foreach (var chunk in ChunkRows())
+                {
+                    PrepareChunkExecution(chunk);
+                    total += dbUtils.ExecuteNonQuery();
+                }
+                if (manageTransaction) dbUtils.Commit();
+                return total;
+            }
+            catch (Exception error)
+            {
+                if (manageTransaction)
+                {
+                    try { dbUtils.Rollback(); }
+                    catch (Exception cleanup) { error.Data["NetQL.RollbackError"] = cleanup; }
+                }
+                throw;
+            }
+        }
+        private async Task<int> ExecuteChunksAsync(CancellationToken cancellationToken)
+        {
+            BeginChunkedExecution();
+            bool manageTransaction = !bulkCommitEachChunk && !dbUtils.HasTransaction;
+            if (manageTransaction) dbUtils.Transaction();
+            int total = 0;
+            try
+            {
+                foreach (var chunk in ChunkRows())
+                {
+                    PrepareChunkExecution(chunk);
+                    total += await dbUtils.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                }
+                if (manageTransaction) await dbUtils.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return total;
+            }
+            catch (Exception error)
+            {
+                if (manageTransaction)
+                {
+                    try { await dbUtils.RollbackAsync(CancellationToken.None).ConfigureAwait(false); }
+                    catch (Exception cleanup) { error.Data["NetQL.RollbackError"] = cleanup; }
+                }
+                throw;
+            }
+        }
+        private IEnumerable<List<List<Set>>> ChunkRows()
+        {
+            int size = EffectiveChunkSize();
+            for (int i = 0; i < bulkInsertData.Count; i += size)
+                yield return bulkInsertData.GetRange(i, Math.Min(size, bulkInsertData.Count - i));
+        }
+        private int EffectiveChunkSize()
+        {
+            int size = bulkChunkSize;
+            if (string.Equals(dbUtils.ProviderName, "SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                int columns = bulkInsertData[0].Count;
+                int parameterRows = Math.Max(1, (2100 - additionalParameters.Count) / Math.Max(1, columns));
+                size = Math.Min(size, Math.Min(1000, parameterRows));
+            }
+            return Math.Max(1, size);
+        }
+        private void PrepareChunkExecution(List<List<Set>> rows)
+        {
+            ValidateProviderLimits(rows);
+            dbUtils.Query(GenerateBulkInsertQuery(rows));
+            foreach (var value in rows.SelectMany(row => row))
+            {
+                if (value is SetRaw raw && raw.IsRaw) continue;
+                dbUtils.AddParameter(value.BindName, value.Value, value.VType);
+            }
+            foreach (var parameter in additionalParameters)
+                dbUtils.AddParameter(parameter.BindName, parameter.Value, parameter.VType);
+            assignWhereParameters(whereValues, ref dbUtils);
+        }
+        private void PrepareExecution()
+        {
+            if (Volatile.Read(ref executionStarted) != 0)
+                throw new InvalidOperationException("A write builder can only be executed once. Create a new builder for another write.");
+            ValidateProviderLimits();
+            var sql = GenerateQuery();
+            if (Interlocked.Exchange(ref executionStarted, 1) != 0)
+                throw new InvalidOperationException("A write builder can only be executed once. Create a new builder for another write.");
+
+            // Never reset this flag, even if preparation, execution or the callback fails.
+            dbUtils.Query(sql);
+            foreach (var value in columnValues.Concat(bulkInsertData.SelectMany(row => row)))
+            {
+                if (value is SetRaw raw && raw.IsRaw) continue;
+                dbUtils.AddParameter(value.BindName, value.Value, value.VType);
+            }
+            foreach (var parameter in additionalParameters)
+                dbUtils.AddParameter(parameter.BindName, parameter.Value, parameter.VType);
+            assignWhereParameters(whereValues, ref dbUtils);
+        }
+        private void ValidateProviderLimits()
+        {
+            ValidateProviderLimits(bulkInsertData);
+        }
+        private void ValidateProviderLimits(List<List<Set>> rows)
+        {
+            // SQL Server rejects more than 1000 rows in a multi-row VALUES list and more than
+            // 2100 parameters per command; failing here keeps the provider error actionable.
+            if (rows.Count == 0 || !string.Equals(dbUtils.ProviderName, "SqlServer", StringComparison.OrdinalIgnoreCase))
+                return;
+            if (rows.Count > 1000)
+                throw new InvalidOperationException("SQL Server accepts at most 1000 rows per INSERT statement, but this batch has "
+                    + rows.Count + " rows. Split the batch into chunks of 1000 rows or fewer.");
+            int parameters = rows.Sum(row => row.Count) + additionalParameters.Count;
+            if (parameters > 2100)
+                throw new InvalidOperationException("SQL Server accepts at most 2100 parameters per command, but this batch needs "
+                    + parameters + ". Split the batch into chunks with at most 2100 / columnCount rows each.");
         }
         protected DbUtils assignWhereParameters(List<SetWhere> wheres, ref DbUtils db)
         {
-            foreach (var _value in wheres)
+            foreach (var value in wheres)
             {
-                if (_value.GetType() == typeof(SetWhereRaw)) continue;
-                else if (_value.GetType() == typeof(SetWhere))
-                    db.AddParameter(_value.BindName, _value.Value, _value.VType);
-                else if (_value is SubWhere)
-                    assignWhereParameters(((SubWhere)_value).SubDbUtil.GetWhereValues(), ref db);
+                if (value is SubWhere subWhere)
+                    subWhere.SubDbUtil.CopyParametersTo(db);
+                else if (value is SetWhereRaw raw && raw.IsRaw)
+                    continue;
+                else if (value is SetWhereIn inValues)
+                {
+                    foreach (var item in inValues.Items)
+                        db.AddParameter(item.BindName, item.Value, item.VType);
+                }
+                else if (NullOperator(value) == null)
+                    db.AddParameter(value.BindName, value.Value, value.VType);
             }
             return db;
         }
-        private void Clear()
+        private string RenderValue(Set value)
         {
-            whereValues.Clear();
-            columnValues.Clear();
+            if (value is SetRaw raw && raw.IsRaw)
+                return value.Value?.ToString() ?? "NULL";
+            return value.CustomBind != null ? value.CustomBind(bindSymbol + value.BindName) : bindSymbol + value.BindName;
         }
-
-        private void SetupUpdateQuery()
+        public string GenerateQuery()
         {
-            query += " SET ";
-            var setQuery = string.Empty;
-
-            foreach (Set _value in columnValues)
+            if (string.IsNullOrWhiteSpace(query))
+                throw new InvalidOperationException("Choose an insert, update or delete operation first.");
+            if (bulkInsertData.Count != 0 && (columnValues.Count != 0 || sqlModelType != SqlModelType.INSERT))
+                throw new InvalidOperationException("Bulk rows can only be used in inserts without explicit column values.");
+            if (sqlModelType == SqlModelType.DELETE)
+                return query + GenerateWhere();
+            if (bulkInsertData.Count != 0)
+                return GenerateBulkInsertQuery();
+            if (columnValues.Count == 0)
+                throw new InvalidOperationException("Insert and update operations require at least one column value.");
+            if (sqlModelType == SqlModelType.UPDATE)
+                return query + " SET " + string.Join(",", columnValues.Select(value =>
+                    WrapQuot(value.Column) + "=" + RenderValue(value))) + GenerateWhere();
+            return query + "(" + string.Join(",", columnValues.Select(value => WrapQuot(value.Column))) +
+                ") VALUES (" + string.Join(",", columnValues.Select(RenderValue)) + ")";
+        }
+        private string GenerateBulkInsertQuery()
+        {
+            return GenerateBulkInsertQuery(bulkInsertData);
+        }
+        private string GenerateBulkInsertQuery(List<List<Set>> data)
+        {
+            var columns = "(" + string.Join(",", data[0].Select(value => WrapQuot(value.Column))) + ")";
+            var rows = data.Select(row => "(" + string.Join(",", row.Select(RenderValue)) + ")");
+            if (string.Equals(dbUtils.ProviderName, "Oracle", StringComparison.OrdinalIgnoreCase))
             {
-                var bindingValue = string.Empty;
-                if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
+                var into = query.Substring("INSERT ".Length);
+                return "INSERT ALL " + string.Join(" ", rows.Select(row => into + columns + " VALUES " + row)) +
+                    " SELECT 1 FROM DUAL";
+            }
+            return query + columns + " VALUES " + string.Join(",", rows);
+        }
+        private static string NullOperator(SetWhere value)
+        {
+            if (value.CustomBind != null || value is SetWhereRaw || value is SetWhereIn || (value.Value != null && value.Value != DBNull.Value))
+                return null;
+            switch (value.ValueOperator?.Trim().ToUpperInvariant())
+            {
+                case "=":
+                case "IS":
+                    return "IS";
+                case "!=":
+                case "<>":
+                case "IS NOT":
+                    return "IS NOT";
+                default:
+                    return null;
+            }
+        }
+        private string GenerateWhere()
+        {
+            var conditions = new List<string>();
+            foreach (var value in whereValues)
+            {
+                var valueOperator = value.ValueOperator;
+                string bindingValue;
+                if (value is SetWhereIn chunked && string.Equals(dbUtils.ProviderName, "Oracle", StringComparison.OrdinalIgnoreCase)
+                    && chunked.Items.Count > OracleInListLimit)
                 {
-                    bindingValue = _value.Value.ToString();
+                    bool notIn = valueOperator != null && valueOperator.Trim().Equals("NOT IN", StringComparison.OrdinalIgnoreCase);
+                    var groups = new List<string>();
+                    for (int i = 0; i < chunked.Items.Count; i += OracleInListLimit)
+                        groups.Add(WrapQuot(value.Column) + " " + valueOperator + " (" + string.Join(",",
+                            chunked.Items.Skip(i).Take(OracleInListLimit).Select(RenderValue)) + ")");
+                    conditions.Add((conditions.Count == 0 ? string.Empty : value.Operator + " ") +
+                        "(" + string.Join(notIn ? " AND " : " OR ", groups) + ")");
+                    continue;
+                }
+                if (value is SetWhereIn inValues)
+                    bindingValue = "(" + string.Join(",", inValues.Items.Select(RenderValue)) + ")";
+                else if (value is SubWhere sub)
+                    bindingValue = "(" + (sub.Column == null ? sub.SubDbUtil.GenerateWhere(true) : sub.SubDbUtil.GenerateQuery()) + ")";
+                else if (value is SetWhereRaw raw && raw.IsRaw)
+                    bindingValue = value.Value?.ToString() ?? "NULL";
+                else if (NullOperator(value) != null)
+                {
+                    valueOperator = NullOperator(value);
+                    bindingValue = "NULL";
                 }
                 else
-                {
-                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
-                }
-                setQuery += ',' + WrapQuot(_value.Column) + '=' + bindingValue;
+                    bindingValue = RenderValue(value);
+
+                var condition = string.IsNullOrEmpty(value.Column) ? bindingValue :
+                    WrapQuot(value.Column) + " " + valueOperator + " " + bindingValue;
+                conditions.Add((conditions.Count == 0 ? string.Empty : value.Operator + " ") + condition);
             }
-            query += setQuery.TrimStart(',');
-
-            GenerateWhere();
-        }
-        private void SetupInsertQuery()
-        {
-            if (bulkInsertData.Count > 0)
-            {
-                query += GenerateBulkInsertBind();
-            }
-            else
-            {
-                string columns = string.Empty;
-                string bindings = string.Empty;
-                foreach (Set _value in columnValues)
-                {
-                    columns += ',' + WrapQuot(_value.Column);
-                    if (_value.GetType() == typeof(SetRaw) && (_value as SetRaw).IsRaw)
-                    {
-                        bindings += "," + _value.Value;
-                    }
-                    else
-                    {
-                        bindings += "," + (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
-                    }
-                }
-                query += "(" + columns.TrimStart(',') + ")";
-                query += " VALUES (" + bindings.TrimStart(',') + ")";
-            }
-        }
-
-        private string GenerateBulkInsertBind()
-        {
-            string resultValuesQuery = string.Empty;
-            string insertColumn = "";
-            var index = 0;
-            foreach (var data in bulkInsertData)
-            {
-                resultValuesQuery += ",(";
-
-                var properties = data.GetType().GetProperties().AsEnumerable();
-                int propertiesLength = properties.Count();
-                string colValues = "";
-
-                for (int i = 0; i < propertiesLength; i++)
-                {
-                    var prop = properties.ElementAt(i);
-                    var columnName = prop.Name + index;
-                    var valueProp = prop.GetValue(data);
-                    // field with underscore will skipped
-                    if (columnName.First() == '_') continue;
-
-                    AddValue(columnName, valueProp, GetType(prop.PropertyType));
-                    string rawValue = valueProp as string;
-
-                    if (valueProp is string && Str.IsRaw(ref rawValue))
-                    {
-                        colValues += "," + rawValue;
-                    }
-                    else if (valueProp != null)
-                        colValues += "," + bindSymbol + columnValues.Last().BindName;
-                    else
-                        colValues += ",NULL";
-                    // generate column name for insert
-                    if (index == 0)
-                    {
-                        var columnAttr = prop.GetCustomAttribute<ColumnAttribute>();
-                        columnName = columnAttr != null ? columnAttr.Name : prop.Name;
-                        insertColumn += "," + WrapQuot(columnName);
-                    }
-                }
-                index++;
-                resultValuesQuery += colValues.Substring(1) + ")";
-            }
-            return "(" + insertColumn.Substring(1) + ") VALUES " + resultValuesQuery.Substring(1);
-        }
-        private void SetupDeleteQuery()
-        {
-            GenerateWhere();
-        }
-        private void GenerateWhere()
-        {
-            var whereQuery = string.Empty;
-            bool firstCondition = true;
-            foreach (SetWhere _value in whereValues)
-            {
-                if (firstCondition) { _value.Operator = string.Empty; firstCondition = false; }
-
-                var bindingValue = _value.Value;
-                string tempValue = bindingValue is string ? bindingValue as string : string.Empty;
-                if (Str.IsRaw(ref tempValue))
-                {
-                    bindingValue = tempValue;
-                }
-                else if (_value.GetType() == typeof(SetWhereRaw) && (_value as SetWhereRaw).IsRaw)
-                {
-                    bindingValue = _value.Value.ToString();
-                }
-                else
-                {
-                    bindingValue = (_value.CustomBind != null ? _value.CustomBind(bindSymbol + _value.BindName) : bindSymbol + _value.BindName);
-                }
-                whereQuery += ' ' + _value.Operator + " " + WrapQuot(_value.Column) + " " + _value.ValueOperator + " " + bindingValue;
-            }
-            query += " WHERE" + whereQuery;
+            return conditions.Count == 0 ? string.Empty : " WHERE " + string.Join(" ", conditions);
         }
     }
 }

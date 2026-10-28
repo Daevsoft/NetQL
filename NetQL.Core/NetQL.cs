@@ -15,7 +15,7 @@ namespace Daevsoft.Core
         public NetQL(IDbConnection connection, Provider provider) : base(connection, provider)
         {
         }
-        public NetQL(IDbConnection connection, char quotSql, char bindSymbol = '@') : base(connection, quotSql, bindSymbol)
+        public NetQL(IDbConnection connection, Provider provider, bool leaveOpen) : base(connection, provider, leaveOpen)
         {
         }
         public NetQL(IDbConnection connection, char quotSql, char bindSymbol = '@') : base(connection, quotSql, bindSymbol)

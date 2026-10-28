@@ -1,108 +1,109 @@
-﻿using System;
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Data.Common;
+using System.Globalization;
 
 namespace Daevsoft.Lib
 {
     public class ReaderUtil<T>
     {
-        DbDataReader reader;
-        public ReaderUtil(DbDataReader reader)
+        private readonly IDataReader reader;
+        // A wrapper belongs to one result set; create a new one after NextResult().
+        private Dictionary<string, int>? ordinals;
+
+        public ReaderUtil(DbDataReader reader) : this((IDataReader)reader)
         {
-            this.reader = reader;
         }
+
+        public ReaderUtil(IDataReader reader)
+        {
+            this.reader = reader ?? throw new ArgumentNullException(nameof(reader));
+        }
+
         public bool IsColumnExist(string columnName)
         {
-            try
+            return columnName != null && GetOrdinals().ContainsKey(columnName);
+        }
+
+        public bool TryGetOrdinal(string columnName, out int ordinal)
+        {
+            if (columnName != null) return GetOrdinals().TryGetValue(columnName, out ordinal);
+            ordinal = -1;
+            return false;
+        }
+
+        private Dictionary<string, int> GetOrdinals()
+        {
+            if (ordinals == null)
             {
+                var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 for (int i = 0; i < reader.FieldCount; i++)
                 {
-                    if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
+                    var name = reader.GetName(i);
+                    // Named access selects the first match; ordinal access stays unambiguous.
+                    if (!lookup.ContainsKey(name))
+                        lookup.Add(name, i);
                 }
-                return false;
+                ordinals = lookup;
             }
-            catch (Exception)
-            {
-                return false;
-            }
+            return ordinals;
         }
-        private string FixNumeric<A>(object value)
-        {
-            if (value == null) return "0";
-            var _value = value.ToString();
-            if (typeof(A) != typeof(double) && typeof(A) != typeof(float))
-            {
-                if (_value.Contains('.'))
-                    _value = _value.Substring(0, _value.IndexOf('.'));
-                if (_value.Contains(','))
-                    _value = _value.Substring(0, _value.IndexOf(','));
-            }
 
-            return _value;
-        }
         public D GetValue<D>(int ordinal)
         {
-            dynamic? value = GetValue<D>(reader.GetColumnSchema().ElementAt(ordinal).ColumnName);
-            return ConvertValue<D>(value);
+            return (D)ConvertValue(reader.GetValue(ordinal), typeof(D))!;
         }
+
         public D GetValue<D>(string columnName)
         {
-            dynamic? value = reader.GetValue(columnName) == DBNull.Value
-                        ? null : reader.GetValue(columnName);
-            return ConvertValue<D>(value);
+            if (columnName == null)
+                throw new ArgumentNullException(nameof(columnName));
+            if (!GetOrdinals().TryGetValue(columnName, out var ordinal))
+                throw new IndexOutOfRangeException($"Column '{columnName}' was not found.");
+            return GetValue<D>(ordinal);
         }
-        private D ConvertValue<D>(dynamic value)
+
+        internal static object? ConvertValue(object? value, Type targetType)
         {
-            Type vType = typeof(D);
-            if (vType == typeof(string))
+            if (targetType == null)
+                throw new ArgumentNullException(nameof(targetType));
+
+            var nullableType = Nullable.GetUnderlyingType(targetType);
+            if (value == null || value == DBNull.Value)
+                return nullableType != null || !targetType.IsValueType
+                    ? null : Activator.CreateInstance(targetType);
+
+            targetType = nullableType ?? targetType;
+            if (targetType.IsInstanceOfType(value))
+                return value;
+
+            if (targetType.IsEnum)
             {
-                return Convert.ToString(value);
+                if (value is string name)
+                    return Enum.Parse(targetType, name, true);
+                return Enum.ToObject(targetType,
+                    Convert.ChangeType(value, Enum.GetUnderlyingType(targetType), CultureInfo.InvariantCulture));
             }
-            if (vType == typeof(int))
+            if (targetType == typeof(Guid))
             {
-                var _value = FixNumeric<int>(value);
-                return Convert.ToInt32(value);
+                if (value is string guid)
+                    return Guid.Parse(guid);
+                if (value is byte[] bytes)
+                    return new Guid(bytes);
             }
-            if (vType == typeof(short))
+            if (targetType == typeof(DateTimeOffset))
             {
-                var _value = FixNumeric<short>(value);
-                return Convert.ToInt16(_value);
+                if (value is DateTime dateTime)
+                    return new DateTimeOffset(dateTime);
+                if (value is string dateTimeOffset)
+                    return DateTimeOffset.Parse(dateTimeOffset, CultureInfo.InvariantCulture);
             }
-            if (vType == typeof(double))
-            {
-                return Convert.ToDouble(value);
-            }
-            if (vType == typeof(decimal))
-            {
-                return Convert.ToDecimal(value);
-            }
-            if (vType == typeof(DateTime))
-            {
-                return Convert.ToDateTime(value);
-            }
-            if (vType == typeof(bool))
-            {
-                return Convert.ToBoolean(value);
-            }
-            if (vType == typeof(char))
-            {
-                return Convert.ToChar(value);
-            }
-            if (vType == typeof(long))
-            {
-                var _value = FixNumeric<long>(value);
-                return Convert.ToInt64(_value);
-            }
-            else
-            {
-                return Convert.ToString(value);
-            }
+            if (targetType == typeof(TimeSpan) && value is string timeSpan)
+                return TimeSpan.Parse(timeSpan, CultureInfo.InvariantCulture);
+
+            return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
         }
     }
 }
