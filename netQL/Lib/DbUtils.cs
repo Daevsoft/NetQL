@@ -128,6 +128,7 @@ namespace Daevsoft.Lib
             this.endQuotSql = endQuotSql.ToString();
             whereValues = new List<SetWhere>();
             joinValues = new List<Join>();
+            additionalParameters = new List<IDbDataParameter>();
             this.bindSymbol = bindSymbol.ToString();
             ConnectionString = connection.ConnectionString;
             ConnectionType = connection.GetType();
