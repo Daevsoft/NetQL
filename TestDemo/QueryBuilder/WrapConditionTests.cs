@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TestDemo.Infrastructure;
+using TestDemo.Models;
 
 namespace TestDemo.QueryBuilder
 {
